@@ -129,7 +129,7 @@ class EvilTwinGUI:
         ttk.Entry(control_frame, textvariable=self.scan_time_var, width=10).grid(row=0, column=1, padx=5, pady=5)
         
         self.scan_btn = ttk.Button(control_frame, text="🔍 Taramayı Başlat", 
-                                  command=self.start_scan)
+                                  command=self.toggle_scan)
         self.scan_btn.grid(row=0, column=2, padx=5, pady=5)
         
         # Ağ listesi
@@ -699,7 +699,7 @@ de çalıştırılabilir."""
             
         self.scan_active = True
         try:
-            self.scan_btn.config(text="⏳ Taranıyor...", state='disabled')
+            self.scan_btn.config(text="⏳ Taranıyor... (🚫 Durdurmak için tıkla)", state='normal')
         except (tk.TclError, RuntimeError):
             pass
         
@@ -711,6 +711,22 @@ de çalıştırılabilir."""
         scan_thread = threading.Thread(target=self._scan_networks)
         scan_thread.daemon = True
         scan_thread.start()
+        
+    def toggle_scan(self):
+        """Tarama başlat/durdur"""
+        if not self.scan_active:
+            self.start_scan()
+        else:
+            self.stop_scan()
+    
+    def stop_scan(self):
+        """Taramayı durdur"""
+        self.scan_active = False
+        self.log_message("Tarama durduruldu")
+        try:
+            self.scan_btn.config(text="🔍 Taramayı Başlat", state='normal')
+        except (tk.TclError, RuntimeError):
+            pass
         
     def _scan_networks(self):
         """Ağ tarama işlemi (thread) - Basit airodump-ng kullanımı"""
@@ -724,40 +740,68 @@ de çalıştırılabilir."""
             
             self.log_message(f"Ağ tarama başlatılıyor: {monitor_interface} ({scan_time} saniye)")
             
-            # Basit airodump-ng komutu
             # Geçici dosya oluştur
             import tempfile
+            import time
             temp_dir = tempfile.mkdtemp()
             output_file = os.path.join(temp_dir, "scan")
             
+            # Daha basit ve güvenilir tarama yöntemi
             cmd = [
-                'sudo', 'timeout', str(scan_time),
-                'airodump-ng', 
+                'sudo', 'airodump-ng', 
                 '--write', output_file,
                 '--output-format', 'csv',
+                '--write-interval', '1',  # Her saniye yaz
                 monitor_interface
             ]
             
             self.log_message("Airodump-ng çalıştırılıyor...")
-            result = subprocess.run(cmd, capture_output=True, text=True)
             
-            # CSV dosyasını oku
+            # Process'i başlat
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
+                                     stderr=subprocess.PIPE, text=True)
+            
+            # Belirtilen süre kadar bekle
+            start_time = time.time()
+            while time.time() - start_time < scan_time:
+                if not self.scan_active:  # Kullanıcı iptal etti
+                    break
+                time.sleep(1)
+                
+                # Sonuçları kontrol et
+                csv_file = f"{output_file}-01.csv"
+                if os.path.exists(csv_file):
+                    try:
+                        self._parse_airodump_csv(csv_file)
+                    except:
+                        pass  # Parse hatası olabilir, devam et
+            
+            # Process'i sonlandır
+            try:
+                process.terminate()
+                process.wait(timeout=3)
+            except:
+                try:
+                    process.kill()
+                except:
+                    pass
+            
+            # Son sonuçları parse et
             csv_file = f"{output_file}-01.csv"
             if os.path.exists(csv_file):
                 self._parse_airodump_csv(csv_file)
-                self.log_message("Ağ taraması tamamlandı")
-                
-                # Geçici dosyaları temizle
-                import shutil
-                try:
-                    shutil.rmtree(temp_dir)
-                except:
-                    pass
+                self.log_message(f"Ağ taraması tamamlandı - {len(self.networks)} ağ bulundu")
             else:
-                self.log_message("Tarama sonuçları bulunamadı", "WARNING")
-                self._safe_messagebox("showwarning", "Tarama Uyarısı",
-                    "Ağ bulunamadı.\n\nManuel tarama için terminal'de:\n" +
-                    f"sudo airodump-ng {monitor_interface}")
+                self.log_message("Hiçbir ağ bulunamadı", "WARNING")
+                # Basit iwlist tarama dene
+                self._try_iwlist_scan(monitor_interface)
+                
+            # Geçici dosyaları temizle
+            import shutil
+            try:
+                shutil.rmtree(temp_dir)
+            except:
+                pass
                 
         except Exception as e:
             self.log_message(f"Tarama işlemi hatası: {e}", "ERROR")
@@ -832,6 +876,96 @@ de çalıştırılabilir."""
                         
         except Exception as e:
             self.log_message(f"CSV parse hatası: {e}", "ERROR")
+    
+    def _try_iwlist_scan(self, interface):
+        """iwlist ile basit tarama (yedek yöntem)"""
+        try:
+            self.log_message("iwlist ile basit tarama deneniyor...")
+            
+            # Önce normal interface'i dene
+            base_interface = interface.replace('mon', '')
+            
+            result = subprocess.run(['sudo', 'iwlist', base_interface, 'scan'], 
+                                  capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0 and result.stdout:
+                self._parse_iwlist_output(result.stdout)
+            else:
+                self.log_message("iwlist tarama başarısız", "WARNING")
+                self._safe_messagebox("showwarning", "Tarama Başarısız",
+                    "Hiçbir ağ bulunamadı.\n\nManuel tarama için terminal'de:\n" +
+                    f"sudo airodump-ng {interface}\n" +
+                    "veya\n" +
+                    f"sudo iwlist {base_interface} scan")
+                    
+        except Exception as e:
+            self.log_message(f"iwlist tarama hatası: {e}", "ERROR")
+    
+    def _parse_iwlist_output(self, output):
+        """iwlist çıktısını parse et"""
+        try:
+            lines = output.split('\n')
+            current_network = {}
+            count = len(self.networks)
+            
+            for line in lines:
+                line = line.strip()
+                
+                if 'Cell' in line and 'Address:' in line:
+                    # Yeni network başladı
+                    if current_network and current_network.get('bssid'):
+                        count += 1
+                        current_network['no'] = count
+                        self.networks.append(current_network.copy())
+                        self._safe_after(0, lambda n=current_network.copy(): self._safe_treeview_insert(n))
+                    
+                    # Yeni network başlat
+                    bssid = line.split('Address: ')[1] if 'Address: ' in line else ''
+                    current_network = {
+                        'bssid': bssid,
+                        'ssid': '<Hidden>',
+                        'channel': '',
+                        'security': '',
+                        'signal': ''
+                    }
+                    
+                elif 'ESSID:' in line:
+                    essid = line.split('ESSID:')[1].strip('"').strip()
+                    if essid:
+                        current_network['ssid'] = essid
+                        
+                elif 'Channel:' in line:
+                    try:
+                        channel = line.split('Channel:')[1].split(')')[0].strip()
+                        current_network['channel'] = channel
+                    except:
+                        pass
+                        
+                elif 'Signal level=' in line:
+                    try:
+                        signal = line.split('Signal level=')[1].split()[0]
+                        current_network['signal'] = signal
+                    except:
+                        pass
+                        
+                elif 'Encryption key:' in line:
+                    if 'on' in line.lower():
+                        current_network['security'] = 'WEP/WPA'
+                    else:
+                        current_network['security'] = 'Open'
+            
+            # Son network'u ekle
+            if current_network and current_network.get('bssid'):
+                count += 1
+                current_network['no'] = count
+                self.networks.append(current_network.copy())
+                self._safe_after(0, lambda n=current_network.copy(): self._safe_treeview_insert(n))
+            
+            if count > len(self.networks) - count:
+                self.log_message(f"iwlist ile {count - (len(self.networks) - count)} ağ bulundu")
+                        
+        except Exception as e:
+            self.log_message(f"iwlist parse hatası: {e}", "ERROR")
             
     def _parse_scan_results(self):
         """Eski tarama sonuçlarını parse et (yedek yöntem)"""
