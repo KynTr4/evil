@@ -1,0 +1,21 @@
+# Evil Twin GUI Requirements
+# Python paketleri
+
+# GUI için temel modüller (Python ile birlikte gelir)
+# tkinter - GUI framework
+# threading - Multi-threading support
+# subprocess - Process management
+# json - JSON data handling
+# os - Operating system interface
+# sys - System-specific parameters
+# time - Time-related functions
+# datetime - Date and time handling
+
+# Ek özellikler için (opsiyonel)
+# psutil>=5.8.0  # Sistem monitoring
+# matplotlib>=3.5.0  # Grafik çizimi
+# numpy>=1.21.0  # Numerical computing
+# scapy>=2.4.5  # Packet manipulation
+
+# Not: Temel GUI uygulaması için ek paket gerekmez
+# Tüm gerekli modüller Python standart kütüphanesinde mevcuttur
