@@ -301,7 +301,7 @@ class EvilTwinGUI:
                 import ctypes
                 is_admin = ctypes.windll.shell32.IsUserAnAdmin()
                 if not is_admin:
-                    messagebox.showwarning(
+                    self._safe_messagebox("showwarning",
                         "Yetki Uyarısı",
                         "Bu uygulama yönetici yetkileri gerektirebilir.\n\nBazı özellikler çalışmayabilir."
                     )
@@ -311,7 +311,7 @@ class EvilTwinGUI:
         else:
             # Linux/Unix sistemler için
             if os.geteuid() != 0:
-                messagebox.showwarning("Yetki Uyarısı", 
+                self._safe_messagebox("showwarning", "Yetki Uyarısı", 
                                      "Bu uygulama root yetkileri gerektirir.\n"
                                      "Lütfen 'sudo python3 evil_twin_gui.py' ile çalıştırın.")
             return True
@@ -407,7 +407,7 @@ class EvilTwinGUI:
         
         # Windows kontrolü
         if platform.system() == "Windows":
-            messagebox.showwarning(
+            self._safe_messagebox("showwarning",
                 "Platform Uyarısı",
                 "Bu özellik Linux/Unix sistemlerde çalışır.\n\n"
                 "Windows'ta WiFi monitor mode için:\n"
@@ -420,7 +420,7 @@ class EvilTwinGUI:
             
         interface = self.interface_var.get()
         if not interface:
-            messagebox.showerror("Hata", "Lütfen bir arayüz seçin")
+            self._safe_messagebox("showerror", "Hata", "Lütfen bir arayüz seçin")
             return
             
         try:
@@ -477,10 +477,36 @@ class EvilTwinGUI:
         if missing_tools:
             message = f"Eksik araçlar: {', '.join(missing_tools)}"
             self.log_message(message, "WARNING")
-            messagebox.showwarning("Eksik Araçlar", message)
+            self._safe_messagebox("showwarning", "Eksik Araçlar", message)
         else:
             self.log_message("Tüm araçlar mevcut")
-            messagebox.showinfo("Araç Kontrolü", "Tüm gerekli araçlar mevcut")
+            self._safe_messagebox("showinfo", "Araç Kontrolü", "Tüm gerekli araçlar mevcut")
+            
+    def _safe_messagebox(self, method_name, title, message):
+        """Güvenli messagebox gösterimi - pencere yok edilmişse hata vermez"""
+        try:
+            # Pencere hala var mı kontrol et
+            if self.root and self.root.winfo_exists():
+                method = getattr(messagebox, method_name)
+                return method(title, message)
+            else:
+                # Pencere yok edilmişse sadece log'a yaz
+                try:
+                    self.log_message(f"{title}: {message}")
+                except:
+                    print(f"{title}: {message}")
+                return False  # askyesno için güvenli varsayılan
+        except tk.TclError:
+            # Tkinter context artık geçerli değilse sadece log'a yaz
+            print(f"{title}: {message}")
+            return False
+        except Exception as e:
+            print(f"Messagebox gösterim hatası: {e}")
+            return False
+    
+    def _safe_askyesno(self, title, message):
+        """Güvenli askyesno - pencere yok edilmişse False döner"""
+        return self._safe_messagebox("askyesno", title, message)
             
     def install_tools(self):
         """Araçları yükle"""
@@ -499,7 +525,7 @@ class EvilTwinGUI:
         import platform
         
         if platform.system() == "Windows":
-            messagebox.showwarning(
+            self._safe_messagebox("showwarning",
                 "Platform Uyarısı",
                 "Ağ tarama özelliği Linux/Unix sistemlerde çalışır.\n\n"
                 "Windows'ta WiFi ağları görmek için:\n"
@@ -511,11 +537,11 @@ class EvilTwinGUI:
             return
             
         if not self.monitor_active:
-            messagebox.showerror("Hata", "Önce monitor mode'u başlatın")
+            self._safe_messagebox("showerror", "Hata", "Önce monitor mode'u başlatın")
             return
             
         if self.scan_active:
-            messagebox.showwarning("Uyarı", "Tarama zaten aktif")
+            self._safe_messagebox("showwarning", "Uyarı", "Tarama zaten aktif")
             return
             
         self.scan_active = True
@@ -609,7 +635,7 @@ class EvilTwinGUI:
         """Seçili ağı hedef yap"""
         selection = self.networks_tree.selection()
         if not selection:
-            messagebox.showwarning("Uyarı", "Lütfen bir ağ seçin")
+            self._safe_messagebox("showwarning", "Uyarı", "Lütfen bir ağ seçin")
             return
             
         item = self.networks_tree.item(selection[0])
@@ -621,7 +647,7 @@ class EvilTwinGUI:
         self.fake_ssid_var.set(values[1])  # Varsayılan olarak aynı SSID
         
         self.log_message(f"Hedef seçildi: {values[1]} ({values[2]})")
-        messagebox.showinfo("Hedef Seçildi", f"Hedef ağ: {values[1]}\nBSSID: {values[2]}")
+        self._safe_messagebox("showinfo", "Hedef Seçildi", f"Hedef ağ: {values[1]}\nBSSID: {values[2]}")
         
         # Saldırı sekmesine geç
         self.notebook.select(2)
@@ -629,7 +655,7 @@ class EvilTwinGUI:
     def save_scan_results(self):
         """Tarama sonuçlarını kaydet"""
         if not self.networks:
-            messagebox.showwarning("Uyarı", "Kaydedilecek sonuç yok")
+            self._safe_messagebox("showwarning", "Uyarı", "Kaydedilecek sonuç yok")
             return
             
         filename = filedialog.asksaveasfilename(
@@ -642,7 +668,7 @@ class EvilTwinGUI:
                 with open(filename, 'w') as f:
                     json.dump(self.networks, f, indent=2)
                 self.log_message(f"Sonuçlar kaydedildi: {filename}")
-                messagebox.showinfo("Başarılı", "Tarama sonuçları kaydedildi")
+                self._safe_messagebox("showinfo", "Başarılı", "Tarama sonuçları kaydedildi")
             except Exception as e:
                 self.log_message(f"Kaydetme hatası: {e}", "ERROR")
                 
@@ -651,7 +677,7 @@ class EvilTwinGUI:
         import platform
         
         if platform.system() == "Windows":
-            messagebox.showwarning(
+            self._safe_messagebox("showwarning",
                 "Platform Uyarısı",
                 "Evil Twin saldırısı Linux/Unix sistemlerde çalışır.\n\n"
                 "Windows'ta WiFi saldırıları için:\n"
@@ -665,15 +691,15 @@ class EvilTwinGUI:
             
         # Hedef kontrolü
         if not self.target_bssid_var.get():
-            messagebox.showerror("Hata", "Lütfen hedef ağ seçin")
+            self._safe_messagebox("showerror", "Hata", "Lütfen hedef ağ seçin")
             return
             
         if self.attack_active:
-            messagebox.showwarning("Uyarı", "Saldırı zaten aktif")
+            self._safe_messagebox("showwarning", "Uyarı", "Saldırı zaten aktif")
             return
             
         # Etik onay
-        response = messagebox.askyesno(
+        response = self._safe_askyesno(
             "Etik Onay",
             "Bu saldırıyı sadece kendi ağınızda veya izinli ortamda yapacağınızı onaylıyor musunuz?"
         )
@@ -793,7 +819,7 @@ class EvilTwinGUI:
             
     def clear_logs(self):
         """Logları temizle"""
-        response = messagebox.askyesno("Onay", "Tüm logları temizlemek istediğinizden emin misiniz?")
+        response = self._safe_askyesno("Onay", "Tüm logları temizlemek istediğinizden emin misiniz?")
         if response:
             self.logs_text.delete(1.0, tk.END)
             self.log_message("Loglar temizlendi")
@@ -810,7 +836,7 @@ class EvilTwinGUI:
                 with open(filename, 'w') as f:
                     f.write(self.logs_text.get(1.0, tk.END))
                 self.log_message(f"Loglar kaydedildi: {filename}")
-                messagebox.showinfo("Başarılı", "Loglar kaydedildi")
+                self._safe_messagebox("showinfo", "Başarılı", "Loglar kaydedildi")
             except Exception as e:
                 self.log_message(f"Log kaydetme hatası: {e}", "ERROR")
 
@@ -822,7 +848,7 @@ def main():
     # Pencere kapatma olayı
     def on_closing():
         if app.attack_active:
-            response = messagebox.askyesno("Onay", "Saldırı aktif. Yine de çıkmak istiyor musunuz?")
+            response = app._safe_askyesno("Onay", "Saldırı aktif. Yine de çıkmak istiyor musunuz?")
             if response:
                 app.stop_attack()
                 root.destroy()
