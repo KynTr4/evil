@@ -110,6 +110,8 @@ def index():
         return render_template('client_dashboard.html',
                              projects=client_projects,
                              client_id=current_user.client_id)
+    
+    return render_template('dashboard.html', dashboard={}, user_role='guest')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -205,6 +207,9 @@ def update_project_status(project_id):
     if current_user.role == 'client':
         return jsonify({'error': 'Access denied'}), 403
     
+    if not request.json:
+        return jsonify({'error': 'No JSON data provided'}), 400
+        
     new_status = request.json.get('status')
     
     from management.client_system import ClientManagementSystem, ProjectStatus
@@ -244,7 +249,7 @@ def upload_report(project_id):
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
     
-    if file:
+    if file and file.filename:
         filename = secure_filename(file.filename)
         upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(upload_path)

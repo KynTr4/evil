@@ -49,7 +49,7 @@ class Client:
     contract_end: date
     billing_rate: float
     notes: str = ""
-    created_at: datetime = None
+    created_at: Optional[datetime] = None
     
     def __post_init__(self):
         if self.created_at is None:
@@ -72,8 +72,8 @@ class Project:
     lead_consultant: str
     team_members: List[str]
     deliverables: List[str]
-    created_at: datetime = None
-    updated_at: datetime = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     
     def __post_init__(self):
         if self.created_at is None:
@@ -98,7 +98,7 @@ class Assessment:
     report_path: str
     evidence_path: str
     notes: str = ""
-    created_at: datetime = None
+    created_at: Optional[datetime] = None
 
 @dataclass
 class Finding:
@@ -116,7 +116,7 @@ class Finding:
     affected_systems: List[str]
     discovered_date: date
     remediation_date: Optional[date] = None
-    created_at: datetime = None
+    created_at: Optional[datetime] = None
 
 class ClientManagementSystem:
     """Professional client and project management system"""

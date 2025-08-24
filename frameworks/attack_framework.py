@@ -58,7 +58,7 @@ class Target:
     encryption: str
     signal_strength: int
     vendor: Optional[str] = None
-    clients: List[str] = None
+    clients: Optional[List[str]] = None
 
 class AttackModule(ABC):
     """Abstract base class for attack modules"""
@@ -93,6 +93,7 @@ class EvilTwinAttack(AttackModule):
     def execute(self, target: Target, options: Dict) -> AttackResult:
         """Execute Evil Twin attack"""
         start_time = time.time()
+        result_details = {}  # Initialize at the beginning
         
         try:
             self.is_running = True
@@ -368,7 +369,16 @@ class SecurityTestingFramework:
         """Generate comprehensive assessment report"""
         
         # Integrate with report generator
-        from .report_generator import SecurityReportGenerator, VulnerabilityFinding, ClientInfo
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+        
+        try:
+            from reports.report_generator import SecurityReportGenerator, VulnerabilityFinding, ClientInfo
+        except ImportError:
+            # Fallback if report generator not available
+            self.log_message("Report generator not available", "WARNING")
+            return "Report generation failed - missing dependencies"
         
         # Convert attack results to vulnerability findings
         findings = []

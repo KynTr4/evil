@@ -193,6 +193,47 @@ Assessment methodology follows NIST Cybersecurity Framework and OWASP standards.
                 report += f"- **{finding.title}** (Severity: {finding.severity})\n"
         
         return report
+    
+    def _generate_iso27001_report(self, findings: List[VulnerabilityFinding], client: ClientInfo) -> str:
+        """Generate ISO 27001 aligned report"""
+        
+        iso_controls = {
+            "A.9 Access Control": [],
+            "A.10 Cryptography": [],
+            "A.11 Physical Security": [],
+            "A.12 Operations Security": [],
+            "A.13 Communications Security": [],
+            "A.14 System Development": []
+        }
+        
+        # Map findings to ISO controls
+        for finding in findings:
+            if "authentication" in finding.title.lower() or "access" in finding.title.lower():
+                iso_controls["A.9 Access Control"].append(finding)
+            elif "encryption" in finding.title.lower() or "crypto" in finding.title.lower():
+                iso_controls["A.10 Cryptography"].append(finding)
+            elif "wireless" in finding.title.lower() or "network" in finding.title.lower():
+                iso_controls["A.13 Communications Security"].append(finding)
+            else:
+                iso_controls["A.12 Operations Security"].append(finding)
+        
+        report = f"""
+# ISO 27001 Compliance Report
+
+**Client:** {client.company_name}
+**Assessment Date:** {client.assessment_date}
+
+## ISO 27001 Controls Assessment
+
+"""
+        
+        for control, control_findings in iso_controls.items():
+            report += f"\n### {control} ({len(control_findings)} findings)\n"
+            for finding in control_findings:
+                report += f"- **{finding.title}** (Severity: {finding.severity})\n"
+                report += f"  Recommendation: {finding.recommendation}\n\n"
+        
+        return report
 
 def example_usage():
     """Example usage for generating professional reports"""
