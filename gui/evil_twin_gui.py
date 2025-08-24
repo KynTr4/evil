@@ -37,6 +37,10 @@ class EvilTwinGUI:
         self.scan_active = False
         self.attack_active = False
         
+        # Process referansları
+        self.scan_process = None
+        self.attack_process = None
+        
         # Ağ listesi
         self.networks = []
         
@@ -758,7 +762,7 @@ de çalıştırılabilir."""
             self.log_message("Airodump-ng çalıştırılıyor...")
             
             # Process'i başlat
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
+            self.scan_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
                                      stderr=subprocess.PIPE, text=True)
             
             # Belirtilen süre kadar bekle
@@ -778,11 +782,13 @@ de çalıştırılabilir."""
             
             # Process'i sonlandır
             try:
-                process.terminate()
-                process.wait(timeout=3)
+                if self.scan_process:
+                    self.scan_process.terminate()
+                    self.scan_process.wait(timeout=3)
             except:
                 try:
-                    process.kill()
+                    if self.scan_process:
+                        self.scan_process.kill()
                 except:
                     pass
             
@@ -1204,24 +1210,99 @@ de çalıştırılabilir."""
                 self._safe_messagebox("showinfo", "Başarılı", "Loglar kaydedildi")
             except Exception as e:
                 self.log_message(f"Log kaydetme hatası: {e}", "ERROR")
+                
+    def cleanup_on_exit(self):
+        """Uygulama kapatılırken temizlik işlemleri"""
+        try:
+            self.log_message("Uygulama kapatılıyor, temizlik yapılıyor...")
+            
+            # Tüm aktif işlemleri durdur
+            self.scan_active = False
+            self.attack_active = False
+            
+            # Scan process'i durdur
+            if hasattr(self, 'scan_process') and self.scan_process:
+                try:
+                    self.scan_process.terminate()
+                    self.scan_process.wait(timeout=2)
+                except:
+                    try:
+                        self.scan_process.kill()
+                    except:
+                        pass
+            
+            # Attack process'i durdur
+            if hasattr(self, 'attack_process') and self.attack_process:
+                try:
+                    self.attack_process.terminate()
+                    self.attack_process.wait(timeout=2)
+                except:
+                    try:
+                        self.attack_process.kill()
+                    except:
+                        pass
+            
+            # Monitor mode'u durdur
+            if self.monitor_active:
+                try:
+                    interface = self.interface_var.get()
+                    monitor_interface = self.monitor_interface_var.get() or f"{interface}mon"
+                    subprocess.run(['sudo', 'airmon-ng', 'stop', monitor_interface], 
+                                 capture_output=True, timeout=5)
+                    self.log_message("Monitor mode durduruldu")
+                except:
+                    pass
+                    
+        except Exception as e:
+            print(f"Temizlik hatası: {e}")
 
 def main():
     """Ana fonksiyon"""
+    import signal
+    
+    def signal_handler(sig, frame):
+        """Ctrl+C ile temiz çıkış"""
+        print("\n[INFO] Uygulama kapatılıyor...")
+        try:
+            app.cleanup_on_exit()
+            root.quit()
+            root.destroy()
+        except:
+            pass
+        exit(0)
+    
+    # Signal handler'i kaydet
+    signal.signal(signal.SIGINT, signal_handler)
+    
     root = tk.Tk()
     app = EvilTwinGUI(root)
     
     # Pencere kapatma olayı
     def on_closing():
-        if app.attack_active:
-            response = app._safe_askyesno("Onay", "Saldırı aktif. Yine de çıkmak istiyor musunuz?")
-            if response:
-                app.stop_attack()
+        try:
+            app.cleanup_on_exit()
+            if app.attack_active:
+                response = app._safe_askyesno("Onay", "Saldırı aktif. Yine de çıkmak istiyor musunuz?")
+                if response:
+                    app.stop_attack()
+                    root.destroy()
+            else:
                 root.destroy()
-        else:
+        except:
             root.destroy()
             
     root.protocol("WM_DELETE_WINDOW", on_closing)
-    root.mainloop()
+    
+    try:
+        root.mainloop()
+    except KeyboardInterrupt:
+        print("\n[INFO] Ctrl+C ile çıkış yapıldı")
+        try:
+            app.cleanup_on_exit()
+            root.quit()
+            root.destroy()
+        except:
+            pass
 
 if __name__ == "__main__":
     main()
