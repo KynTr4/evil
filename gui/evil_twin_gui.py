@@ -108,6 +108,9 @@ class EvilTwinGUI:
                                      command=self.toggle_monitor_mode)
         self.monitor_btn.grid(row=0, column=1, padx=5, pady=5)
         
+        ttk.Button(monitor_frame, text="🛑 Zorla Durdur", 
+                  command=self.force_stop_monitor).grid(row=0, column=2, padx=5, pady=5)
+        
         # Sistem kontrolü
         system_frame = ttk.LabelFrame(setup_frame, text="Sistem Kontrolü")
         system_frame.pack(fill='x', padx=10, pady=5)
@@ -135,6 +138,18 @@ class EvilTwinGUI:
         self.scan_btn = ttk.Button(control_frame, text="🔍 Taramayı Başlat", 
                                   command=self.toggle_scan)
         self.scan_btn.grid(row=0, column=2, padx=5, pady=5)
+        
+        # Gelişmiş tarama seçenekleri
+        ttk.Button(control_frame, text="🔍+ Geniş Tarama", 
+                  command=self.start_extended_scan).grid(row=0, column=3, padx=5, pady=5)
+        
+        # Tarama seçenekleri
+        options_frame = ttk.Frame(control_frame)
+        options_frame.grid(row=1, column=0, columnspan=4, sticky='w', padx=5, pady=5)
+        
+        self.scan_all_channels_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(options_frame, text="Tüm kanalları tara", 
+                       variable=self.scan_all_channels_var).pack(side='left', padx=5)
         
         # Ağ listesi
         networks_frame = ttk.LabelFrame(scan_frame, text="Bulunan Ağlar")
@@ -517,39 +532,122 @@ class EvilTwinGUI:
             
             self.log_message("Monitor mode durduruluyor...")
             
-            # Basit ve doğrudan yöntem
-            result = subprocess.run(['sudo', 'airmon-ng', 'stop', monitor_interface], 
-                                  capture_output=True, text=True)
+            # Basit ve doğrudan yöntem - tüm olası interface'leri dene
+            possible_interfaces = [
+                monitor_interface,
+                f"{interface}mon",
+                interface,
+                "wlan0mon",
+                "wlp2s0mon",
+                "wlx*mon"  # USB WiFi adapters
+            ]
             
-            # Biraz bekle
+            monitor_stopped = False
+            
+            # Önce mevcut monitor interface'leri bul
+            result = subprocess.run(['iwconfig'], capture_output=True, text=True)
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if 'Mode:Monitor' in line:
+                        # Monitor mode'da çalışan interface'i bul
+                        parts = line.split()
+                        if len(parts) > 0:
+                            actual_monitor = parts[0]
+                            self.log_message(f"Aktif monitor interface bulundu: {actual_monitor}")
+                            
+                            # Bu interface'i durdur
+                            stop_result = subprocess.run(['sudo', 'airmon-ng', 'stop', actual_monitor], 
+                                                        capture_output=True, text=True)
+                            
+                            if stop_result.returncode == 0:
+                                monitor_stopped = True
+                                self.log_message(f"✅ {actual_monitor} başarıyla durduruldu")
+                                break
+            
+            # Eğer hiçbir monitor interface bulunamazsa, hepsini dene
+            if not monitor_stopped:
+                for iface in possible_interfaces:
+                    if '*' in iface:  # Wildcard interface'leri atla
+                        continue
+                    try:
+                        result = subprocess.run(['sudo', 'airmon-ng', 'stop', iface], 
+                                              capture_output=True, text=True, timeout=5)
+                        if result.returncode == 0:
+                            monitor_stopped = True
+                            self.log_message(f"✅ {iface} başarıyla durduruldu")
+                            break
+                    except:
+                        continue
+            
+            # Biraz bekle ve kontrol et
             import time
             time.sleep(1)
             
-            # Başarı kontrolü - monitor interface artık olmamalı
+            # Son kontrol - hiçbir monitor interface kalmış mı?
             check_result = subprocess.run(['iwconfig'], capture_output=True, text=True)
             
-            monitor_still_exists = False
+            still_has_monitor = False
             if check_result.returncode == 0:
                 for line in check_result.stdout.split('\n'):
-                    if monitor_interface in line and 'Mode:Monitor' in line:
-                        monitor_still_exists = True
+                    if 'Mode:Monitor' in line:
+                        still_has_monitor = True
                         break
             
-            if not monitor_still_exists:
+            if not still_has_monitor or monitor_stopped:
                 self.monitor_active = False
                 self.monitor_status_label.config(text="Durum: Pasif", foreground='red')
                 self.monitor_btn.config(text="📡 Monitor Mode Başlat")
                 self.monitor_interface_var.set("")
                 self.log_message("✅ Monitor mode başarıyla durduruldu")
             else:
-                # Manuel durdurma talimatı
+                # Gerçekten durdurulamadıysa, kullanıcıya basit çözüm öner
                 self.log_message("Monitor mode otomatik durdurulamadı", "WARNING")
                 self._safe_messagebox("showwarning", "Manuel Durdurma Gerekli",
-                    f"Monitor mode durdurulamadı.\n\nManuel olarak terminal'de deneyin:\n" +
-                    f"sudo airmon-ng stop {monitor_interface}")
+                    "Monitor mode durdurulamadı.\n\n" +
+                    "Terminal'de bu komutu çalıştırın:\n" +
+                    "sudo airmon-ng check kill\n" +
+                    "sudo systemctl restart NetworkManager")
             
         except Exception as e:
             self.log_message(f"Monitor mode durdurma hatası: {e}", "ERROR")
+    
+    def force_stop_monitor(self):
+        """Tüm monitor interface'leri zorla durdur"""
+        try:
+            self.log_message("Tüm monitor interface'ler zorla durduruluyor...")
+            
+            # 1. Airmon-ng check kill - tüm çakışan servisleri durdur
+            subprocess.run(['sudo', 'airmon-ng', 'check', 'kill'], 
+                         capture_output=True, text=True)
+            
+            # 2. Tüm monitor interface'leri bul ve durdur
+            result = subprocess.run(['iwconfig'], capture_output=True, text=True)
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if 'Mode:Monitor' in line:
+                        parts = line.split()
+                        if len(parts) > 0:
+                            monitor_iface = parts[0]
+                            subprocess.run(['sudo', 'airmon-ng', 'stop', monitor_iface], 
+                                         capture_output=True, text=True)
+                            self.log_message(f"Zorla durduruldu: {monitor_iface}")
+            
+            # 3. NetworkManager'i yeniden başlat
+            subprocess.run(['sudo', 'systemctl', 'restart', 'NetworkManager'], 
+                         capture_output=True, text=True)
+            
+            # 4. Durum güncelle
+            self.monitor_active = False
+            self.monitor_status_label.config(text="Durum: Pasif", foreground='red')
+            self.monitor_btn.config(text="📡 Monitor Mode Başlat")
+            self.monitor_interface_var.set("")
+            
+            self.log_message("✅ Tüm monitor interface'ler zorla durduruldu")
+            self._safe_messagebox("showinfo", "Başarılı", 
+                                "Tüm monitor interface'ler durduruldu.\nNetworkManager yeniden başlatıldı.")
+            
+        except Exception as e:
+            self.log_message(f"Zorla durdurma hatası: {e}", "ERROR")
             
     def check_tools(self):
         """Gerekli araçları kontrol et"""
@@ -657,6 +755,7 @@ class EvilTwinGUI:
         """Manuel monitor mode komutlarını göster"""
         commands = """📄 Manuel Monitor Mode Komutları:
 
+✅ MONITOR MODE BAŞLATMA:
 # 1. Wi-Fi arayüzünü bul
 iwconfig
 
@@ -669,11 +768,21 @@ sudo airmon-ng start wlan0
 # 4. Kontrol et
 iwconfig wlan0mon
 
-# 5. Geri al (bitince)
+❌ MONITOR MODE DURDURMA:
+# 1. Monitor interface'i durdur
 sudo airmon-ng stop wlan0mon
 
-💡 Bu komutlar terminal
-de çalıştırılabilir."""
+# 2. NetworkManager'i başlat
+sudo systemctl restart NetworkManager
+
+🆘 SORUN ÇÖZME:
+# Eğer monitor mode durmuyor:
+sudo airmon-ng check kill
+sudo killall airodump-ng
+sudo killall airmon-ng
+sudo systemctl restart NetworkManager
+
+💡 Bu komutlar terminal'de çalıştırılabilir."""
         
         self._safe_messagebox("showinfo", "Manuel Komutlar", commands)
             
@@ -703,9 +812,59 @@ de çalıştırılabilir."""
             
         self.scan_active = True
         try:
-            self.scan_btn.config(text="⏳ Taranıyor... (🚫 Durdurmak için tıkla)", state='normal')
+            self.scan_btn.config(text="🚫 Durdurmak için tıkla", state='normal')
         except (tk.TclError, RuntimeError):
             pass
+    
+    def start_extended_scan(self):
+        """Geniş ağ taraması - daha fazla ağ bulmaya odaklı"""
+        import platform
+        
+        if platform.system() == "Windows":
+            self._safe_messagebox("showwarning",
+                "Platform Uyarısı",
+                "Ağ tarama özelliği Linux/Unix sistemlerde çalışır.\n\n"
+                "Windows'ta WiFi ağları görmek için:\n"
+                "• Kali Linux (WSL2) kullanın\n"
+                "• VirtualBox/VMware ile Linux VM\n"
+                "• Windows WiFi ayarlarını kontrol edin"
+            )
+            self.log_message("Ağ tarama Windows'ta desteklenmiyor", "WARNING")
+            return
+            
+        if not self.monitor_active:
+            self._safe_messagebox("showerror", "Hata", "Önce monitor mode'u başlatın")
+            return
+            
+        if self.scan_active:
+            self._safe_messagebox("showwarning", "Uyarı", "Tarama zaten aktif")
+            return
+        
+        # Geniş tarama için daha uzun süre
+        original_time = self.scan_time_var.get()
+        self.scan_time_var.set("60")  # 60 saniye
+        
+        self.log_message("Geniş ağ taraması başlatılıyor (60 saniye, tüm kanallar)...")
+        
+        self.scan_active = True
+        try:
+            self.scan_btn.config(text="⏳ Geniş Tarama... (🚫 Durdurmak için tıkla)", state='normal')
+        except (tk.TclError, RuntimeError):
+            pass
+        
+        # Ağ listesini temizle
+        for item in self.networks_tree.get_children():
+            self.networks_tree.delete(item)
+            
+        # Geniş taramayı thread'de başlat
+        scan_thread = threading.Thread(target=self._extended_scan_networks)
+        scan_thread.daemon = True
+        scan_thread.start()
+        
+        # Orijinal süreyi geri yükle
+        def restore_time():
+            self.scan_time_var.set(original_time)
+        self._safe_after(1000, restore_time)  # 1 saniye sonra geri yükle
         
         # Ağ listesini temizle
         for item in self.networks_tree.get_children():
@@ -750,35 +909,43 @@ de çalıştırılabilir."""
             temp_dir = tempfile.mkdtemp()
             output_file = os.path.join(temp_dir, "scan")
             
-            # Daha basit ve güvenilir tarama yöntemi
+            # Geliştirilmiş airodump-ng komutu - daha fazla ağ bulması için
             cmd = [
                 'sudo', 'airodump-ng', 
                 '--write', output_file,
                 '--output-format', 'csv',
-                '--write-interval', '1',  # Her saniye yaz
+                '--write-interval', '2',  # 2 saniye aralıkla yaz
+                '--band', 'abg',  # Tüm bantları tara (2.4GHz + 5GHz)
                 monitor_interface
             ]
             
-            self.log_message("Airodump-ng çalıştırılıyor...")
+            self.log_message("Airodump-ng çalıştırılıyor (tüm kanallar taranacak)...")
             
             # Process'i başlat
             self.scan_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
                                      stderr=subprocess.PIPE, text=True)
             
-            # Belirtilen süre kadar bekle
+            # Belirtilen süre kadar bekle ve sonuçları güncelle
             start_time = time.time()
+            last_update = 0
+            
             while time.time() - start_time < scan_time:
                 if not self.scan_active:  # Kullanıcı iptal etti
                     break
-                time.sleep(1)
+                    
+                current_time = time.time() - start_time
                 
-                # Sonuçları kontrol et
-                csv_file = f"{output_file}-01.csv"
-                if os.path.exists(csv_file):
-                    try:
-                        self._parse_airodump_csv(csv_file)
-                    except:
-                        pass  # Parse hatası olabilir, devam et
+                # Her 3 saniyede bir sonuçları kontrol et
+                if current_time - last_update >= 3:
+                    csv_file = f"{output_file}-01.csv"
+                    if os.path.exists(csv_file):
+                        try:
+                            self._parse_airodump_csv(csv_file)
+                            last_update = current_time
+                        except:
+                            pass  # Parse hatası olabilir, devam et
+                
+                time.sleep(1)
             
             # Process'i sonlandır
             try:
@@ -796,7 +963,13 @@ de çalıştırılabilir."""
             csv_file = f"{output_file}-01.csv"
             if os.path.exists(csv_file):
                 self._parse_airodump_csv(csv_file)
-                self.log_message(f"Ağ taraması tamamlandı - {len(self.networks)} ağ bulundu")
+                
+                unique_count = len(set(network['bssid'] for network in self.networks))
+                self.log_message(f"Ağ taraması tamamlandı - {unique_count} benzersiz ağ bulundu")
+                
+                if unique_count < 3:  # Çok az ağ bulunduysa alternatif yöntem dene
+                    self.log_message("Az ağ bulundu, iwlist ile ek tarama yapılıyor...")
+                    self._try_iwlist_scan(monitor_interface)
             else:
                 self.log_message("Hiçbir ağ bulunamadı", "WARNING")
                 # Basit iwlist tarama dene
@@ -815,8 +988,85 @@ de çalıştırılabilir."""
             self.scan_active = False
             self._safe_after(0, lambda: self._safe_widget_config(self.scan_btn, text="🔍 Taramayı Başlat", state='normal'))
             
+    def _extended_scan_networks(self):
+        """Geniş ağ taraması - kanal değiştirme ile"""
+        try:
+            monitor_interface = self.monitor_interface_var.get()
+            
+            if not monitor_interface:
+                self.log_message("Monitor interface bulunamadı", "ERROR")
+                return
+            
+            # Önemli kanallar listesi (2.4GHz ve 5GHz)
+            channels_2g = [1, 6, 11, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13]
+            channels_5g = [36, 40, 44, 48, 149, 153, 157, 161, 165]
+            all_channels = channels_2g + channels_5g
+            
+            self.log_message(f"Kanal değiştirme taraması başlatılıyor ({len(all_channels)} kanal)...")
+            
+            import tempfile
+            import time
+            
+            # Her kanal için tarama
+            for i, channel in enumerate(all_channels):
+                if not self.scan_active:
+                    break
+                    
+                try:
+                    # Kanalı değiştir
+                    subprocess.run(['sudo', 'iwconfig', monitor_interface, 'channel', str(channel)], 
+                                 capture_output=True, timeout=3)
+                    
+                    self.log_message(f"Kanal {channel} taranıyor... ({i+1}/{len(all_channels)})")
+                    
+                    # Geçici dosya
+                    temp_dir = tempfile.mkdtemp()
+                    output_file = os.path.join(temp_dir, f"scan_ch{channel}")
+                    
+                    # Bu kanal için kısa tarama (3 saniye)
+                    cmd = [
+                        'sudo', 'timeout', '3',
+                        'airodump-ng', 
+                        '--write', output_file,
+                        '--output-format', 'csv',
+                        '--channel', str(channel),
+                        monitor_interface
+                    ]
+                    
+                    subprocess.run(cmd, capture_output=True, text=True)
+                    
+                    # Sonuçları parse et
+                    csv_file = f"{output_file}-01.csv"
+                    if os.path.exists(csv_file):
+                        self._parse_airodump_csv(csv_file)
+                    
+                    # Temizlik
+                    import shutil
+                    try:
+                        shutil.rmtree(temp_dir)
+                    except:
+                        pass
+                        
+                except Exception as e:
+                    self.log_message(f"Kanal {channel} tarama hatası: {e}", "WARNING")
+                    continue
+            
+            # iwlist ile ek tarama
+            if self.scan_active:
+                self.log_message("iwlist ile ek tarama yapılıyor...")
+                self._try_iwlist_scan(monitor_interface)
+            
+            unique_count = len(set(network['bssid'] for network in self.networks))
+            self.log_message(f"Geniş tarama tamamlandı - {unique_count} benzersiz ağ bulundu")
+            
+        except Exception as e:
+            self.log_message(f"Geniş tarama hatası: {e}", "ERROR")
+        finally:
+            self.scan_active = False
+            self._safe_after(0, lambda: self._safe_widget_config(self.scan_btn, text="🔍 Taramayı Başlat", state='normal'))
+            
     def _parse_airodump_csv(self, csv_file):
-        """Airodump CSV dosyasını parse et"""
+        """Airodump CSV dosyasını parse et - duplikatları kaldır"""
         try:
             with open(csv_file, 'r', encoding='utf-8') as f:
                 content = f.read()
@@ -824,9 +1074,18 @@ de çalıştırılabilir."""
             # CSV'yi satırlara ayır
             lines = content.strip().split('\n')
             
-            self.networks = []
-            count = 0
+            # Mevcut ağları BSSID'ye göre takip et (duplikat önleme)
+            existing_bssids = set()
+            if hasattr(self, 'networks') and self.networks:
+                existing_bssids = set(network['bssid'] for network in self.networks)
+            else:
+                self.networks = []
+                # TreeView'i temizle
+                self._safe_after(0, lambda: self._clear_networks_tree())
+            
+            count = len(self.networks)
             parsing_stations = False
+            new_networks = []
             
             for line in lines:
                 line = line.strip()
@@ -863,25 +1122,45 @@ de çalıştırılabilir."""
                     id_length = parts[12]
                     essid = parts[13] if len(parts) > 13 else ""
                     
-                    if bssid and bssid != 'BSSID' and bssid != '':
+                    # Geçerli BSSID kontrolü ve duplikat önleme
+                    if (bssid and bssid != 'BSSID' and bssid != '' and 
+                        len(bssid) == 17 and ':' in bssid and  # Geçerli MAC formatı
+                        bssid not in existing_bssids):
+                        
                         count += 1
                         network = {
                             'no': count,
-                            'ssid': essid if essid else "<Hidden>",
+                            'ssid': essid if essid and essid != ' ' else "<Hidden>",
                             'bssid': bssid,
-                            'channel': channel,
-                            'security': privacy,
-                            'signal': power
+                            'channel': channel if channel and channel.isdigit() else "?",
+                            'security': privacy if privacy else "Open",
+                            'signal': power if power else "?"
                         }
-                        self.networks.append(network)
                         
-                        # TreeView'e ekle
-                        self._safe_after(0, lambda n=network: self._safe_treeview_insert(n))
+                        # Duplikat kontrolü
+                        existing_bssids.add(bssid)
+                        self.networks.append(network)
+                        new_networks.append(network)
             
-            self.log_message(f"{len(self.networks)} ağ bulundu")
+            # Yeni ağları TreeView'e ekle
+            for network in new_networks:
+                self._safe_after(0, lambda n=network: self._safe_treeview_insert(n))
+            
+            unique_count = len(set(network['bssid'] for network in self.networks))
+            if new_networks:
+                self.log_message(f"{len(new_networks)} yeni ağ bulundu (toplam: {unique_count})")
                         
         except Exception as e:
             self.log_message(f"CSV parse hatası: {e}", "ERROR")
+    
+    def _clear_networks_tree(self):
+        """Ağ listesini temizle"""
+        try:
+            if self.networks_tree and self.networks_tree.winfo_exists():
+                for item in self.networks_tree.get_children():
+                    self.networks_tree.delete(item)
+        except (tk.TclError, RuntimeError):
+            pass
     
     def _try_iwlist_scan(self, interface):
         """iwlist ile basit tarama (yedek yöntem)"""
