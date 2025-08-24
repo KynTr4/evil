@@ -112,6 +112,8 @@ class EvilTwinGUI:
                   command=self.check_tools).pack(side='left', padx=5, pady=5)
         ttk.Button(system_frame, text="📦 Araçları Yükle", 
                   command=self.install_tools).pack(side='left', padx=5, pady=5)
+        ttk.Button(system_frame, text="📄 Manuel Komutlar", 
+                  command=self.show_manual_commands).pack(side='left', padx=5, pady=5)
         
     def create_scan_tab(self):
         """Tarama sekmesi"""
@@ -288,9 +290,14 @@ class EvilTwinGUI:
         
     def update_time(self):
         """Saati güncelle"""
-        current_time = datetime.now().strftime("%H:%M:%S")
-        self.time_label.config(text=current_time)
-        self.root.after(1000, self.update_time)
+        try:
+            current_time = datetime.now().strftime("%H:%M:%S")
+            if self.time_label and self.time_label.winfo_exists():
+                self.time_label.config(text=current_time)
+            self._safe_after(1000, self.update_time)
+        except (tk.TclError, RuntimeError):
+            # Pencere yok edilmişse saati güncellemeyi durdur
+            pass
         
     def check_root_privileges(self):
         """Root yetkilerini kontrol et (Windows'ta admin kontrolü)"""
@@ -321,11 +328,19 @@ class EvilTwinGUI:
         timestamp = datetime.now().strftime("%H:%M:%S")
         log_entry = f"[{timestamp}] [{level}] {message}\n"
         
-        self.logs_text.insert(tk.END, log_entry)
-        self.logs_text.see(tk.END)
-        
-        # Durum çubuğunu güncelle
-        self.status_label.config(text=message)
+        try:
+            if hasattr(self, 'logs_text') and self.logs_text and self.logs_text.winfo_exists():
+                self.logs_text.insert(tk.END, log_entry)
+                self.logs_text.see(tk.END)
+            
+            # Durum çubuğunu güncelle
+            if hasattr(self, 'status_label') and self.status_label and self.status_label.winfo_exists():
+                self.status_label.config(text=message)
+        except (tk.TclError, RuntimeError):
+            # Widget yok edilmişse konsola yaz
+            print(log_entry.strip())
+        except Exception as e:
+            print(f"Log hatası: {e} - {log_entry.strip()}")
         
     def scan_interfaces(self):
         """Mevcut ağ arayüzlerini tara"""
@@ -423,8 +438,46 @@ class EvilTwinGUI:
             self._safe_messagebox("showerror", "Hata", "Lütfen bir arayüz seçin")
             return
             
+        # Basit ve doğrudan yöntem (kullanıcının önerdiği gibi)
         try:
-            # Monitor mode scripti çalıştır
+            self.log_message("Monitor mode başlatılıyor (basit yöntem)...")
+            
+            # 1. Çakışan servisleri durdur
+            self.log_message("Çakışan servisler durduruluyor...")
+            result1 = subprocess.run(['sudo', 'airmon-ng', 'check', 'kill'], 
+                                   capture_output=True, text=True)
+            
+            # 2. Monitor mode başlat
+            self.log_message(f"Monitor mode başlatılıyor: {interface}")
+            result2 = subprocess.run(['sudo', 'airmon-ng', 'start', interface], 
+                                   capture_output=True, text=True)
+            
+            # 3. Başarı kontrolü
+            monitor_interface = f"{interface}mon"
+            result3 = subprocess.run(['iwconfig', monitor_interface], 
+                                   capture_output=True, text=True)
+            
+            if result3.returncode == 0 and 'Mode:Monitor' in result3.stdout:
+                self.monitor_active = True
+                self.monitor_status_label.config(text="Durum: Aktif", foreground='green')
+                self.monitor_btn.config(text="📡 Monitor Mode Durdur")
+                self.monitor_interface_var.set(monitor_interface)
+                
+                self.log_message(f"✅ Monitor mode başarıyla aktif: {monitor_interface}")
+                self._safe_messagebox("showinfo", "Başarılı", 
+                                    f"Monitor mode aktif: {monitor_interface}")
+            else:
+                # Alternatif script yöntemini dene
+                self.log_message("Basit yöntem başarısız, script denenecek...")
+                self._start_monitor_mode_script(interface)
+                
+        except Exception as e:
+            self.log_message(f"Monitor mode hatası: {e}", "ERROR")
+            self._safe_messagebox("showerror", "Hata", f"Monitor mode başlatılamadı: {e}")
+    
+    def _start_monitor_mode_script(self, interface):
+        """Script ile monitor mode başlat (yedek yöntem)"""
+        try:
             # GUI dosyasının bulunduğu klasörün parent dizinini al (evil-twin ana klasörü)
             script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             cmd = ['sudo', './scripts/monitor_mode.sh', interface]
@@ -439,27 +492,45 @@ class EvilTwinGUI:
                 monitor_interface = f"{interface}mon"
                 self.monitor_interface_var.set(monitor_interface)
                 
-                self.log_message(f"Monitor mode başlatıldı: {monitor_interface}")
+                self.log_message(f"Monitor mode başlatıldı (script): {monitor_interface}")
             else:
-                self.log_message(f"Monitor mode hatası: {result.stderr}", "ERROR")
+                self.log_message(f"Script monitor mode hatası: {result.stderr}", "ERROR")
                 
         except Exception as e:
-            self.log_message(f"Monitor mode başlatma hatası: {e}", "ERROR")
+            self.log_message(f"Script monitor mode başlatma hatası: {e}", "ERROR")
             
     def stop_monitor_mode(self):
         """Monitor mode'u durdur"""
         try:
             interface = self.interface_var.get()
-            # GUI dosyasının bulunduğu klasörün parent dizinini al (evil-twin ana klasörü)
-            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            cmd = ['sudo', './scripts/restore_interface.sh', interface]
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=script_dir)
+            monitor_interface = f"{interface}mon"
             
-            self.monitor_active = False
-            self.monitor_status_label.config(text="Durum: Pasif", foreground='red')
-            self.monitor_btn.config(text="📡 Monitor Mode Başlat")
+            self.log_message("Monitor mode durduruluyor...")
             
-            self.log_message("Monitor mode durduruldu")
+            # Basit ve doğrudan yöntem
+            result = subprocess.run(['sudo', 'airmon-ng', 'stop', monitor_interface], 
+                                  capture_output=True, text=True)
+            
+            # Başarı kontrolü
+            check_result = subprocess.run(['iwconfig', monitor_interface], 
+                                        capture_output=True, text=True)
+            
+            if check_result.returncode != 0:  # Interface artık yok
+                self.monitor_active = False
+                self.monitor_status_label.config(text="Durum: Pasif", foreground='red')
+                self.monitor_btn.config(text="📡 Monitor Mode Başlat")
+                self.log_message("✅ Monitor mode başarıyla durduruldu")
+            else:
+                # Script yöntemini dene
+                self.log_message("Basit yöntem başarısız, script denenecek...")
+                script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                cmd = ['sudo', './scripts/restore_interface.sh', interface]
+                subprocess.run(cmd, capture_output=True, text=True, cwd=script_dir)
+                
+                self.monitor_active = False
+                self.monitor_status_label.config(text="Durum: Pasif", foreground='red')
+                self.monitor_btn.config(text="📡 Monitor Mode Başlat")
+                self.log_message("Monitor mode durduruldu (script)")
             
         except Exception as e:
             self.log_message(f"Monitor mode durdurma hatası: {e}", "ERROR")
@@ -496,17 +567,63 @@ class EvilTwinGUI:
                 except:
                     print(f"{title}: {message}")
                 return False  # askyesno için güvenli varsayılan
-        except tk.TclError:
-            # Tkinter context artık geçerli değilse sadece log'a yaz
+        except (tk.TclError, RuntimeError):
+            # Tkinter context artık geçerli değilse sadece konsola yaz
             print(f"{title}: {message}")
             return False
         except Exception as e:
             print(f"Messagebox gösterim hatası: {e}")
             return False
     
+    def _safe_after(self, delay, func):
+        """Güvenli root.after - pencere yok edilmişse hata vermez"""
+        try:
+            if self.root and self.root.winfo_exists():
+                return self.root.after(delay, func)
+        except (tk.TclError, RuntimeError):
+            # Pencere yok edilmişse sessizce geç
+            pass
+        except Exception as e:
+            print(f"After call hatası: {e}")
+    
     def _safe_askyesno(self, title, message):
         """Güvenli askyesno - pencere yok edilmişse False döner"""
         return self._safe_messagebox("askyesno", title, message)
+    
+    def _safe_widget_config(self, widget, **kwargs):
+        """Güvenli widget config"""
+        try:
+            if widget and widget.winfo_exists():
+                widget.config(**kwargs)
+        except (tk.TclError, RuntimeError):
+            pass
+    
+    def _safe_treeview_insert(self, network):
+        """Güvenli treeview insert"""
+        try:
+            if self.networks_tree and self.networks_tree.winfo_exists():
+                self.networks_tree.insert('', 'end', values=(
+                    network['no'], network['ssid'], network['bssid'], 
+                    network['channel'], network['security'], network['signal']
+                ))
+        except (tk.TclError, RuntimeError):
+            pass
+    
+    def _safe_text_insert(self, text_widget, content):
+        """Güvenli text widget insert"""
+        try:
+            if text_widget and text_widget.winfo_exists():
+                text_widget.insert(tk.END, content)
+        except (tk.TclError, RuntimeError):
+            pass
+    
+    def _safe_text_see_end(self, text_widget):
+        """Güvenli text widget see end"""
+        try:
+            if text_widget and text_widget.winfo_exists():
+                text_widget.see(tk.END)
+        except (tk.TclError, RuntimeError):
+            pass
             
     def install_tools(self):
         """Araçları yükle"""
@@ -519,6 +636,30 @@ class EvilTwinGUI:
             
         except Exception as e:
             self.log_message(f"Araç yükleme hatası: {e}", "ERROR")
+    
+    def show_manual_commands(self):
+        """Manuel monitor mode komutlarını göster"""
+        commands = """📄 Manuel Monitor Mode Komutları:
+
+# 1. Wi-Fi arayüzünü bul
+iwconfig
+
+# 2. Gerekli servisleri durdur
+sudo airmon-ng check kill
+
+# 3. Monitor moda al
+sudo airmon-ng start wlan0
+
+# 4. Kontrol et
+iwconfig wlan0mon
+
+# 5. Geri al (bitince)
+sudo airmon-ng stop wlan0mon
+
+💡 Bu komutlar terminal
+de çalıştırılabilir."""
+        
+        self._safe_messagebox("showinfo", "Manuel Komutlar", commands)
             
     def start_scan(self):
         """Ağ taramasını başlat"""
@@ -545,7 +686,10 @@ class EvilTwinGUI:
             return
             
         self.scan_active = True
-        self.scan_btn.config(text="⏳ Taranıyor...", state='disabled')
+        try:
+            self.scan_btn.config(text="⏳ Taranıyor...", state='disabled')
+        except (tk.TclError, RuntimeError):
+            pass
         
         # Ağ listesini temizle
         for item in self.networks_tree.get_children():
@@ -577,7 +721,7 @@ class EvilTwinGUI:
             self.log_message(f"Tarama işlemi hatası: {e}", "ERROR")
         finally:
             self.scan_active = False
-            self.root.after(0, lambda: self.scan_btn.config(text="🔍 Taramayı Başlat", state='normal'))
+            self._safe_after(0, lambda: self._safe_widget_config(self.scan_btn, text="🔍 Taramayı Başlat", state='normal'))
             
     def _parse_scan_results(self):
         """Tarama sonuçlarını parse et"""
@@ -624,9 +768,7 @@ class EvilTwinGUI:
                             self.networks.append(network)
                             
                             # TreeView'e ekle
-                            self.root.after(0, lambda n=network: self.networks_tree.insert('', 'end', values=(
-                                n['no'], n['ssid'], n['bssid'], n['channel'], n['security'], n['signal']
-                            )))
+                            self._safe_after(0, lambda n=network: self._safe_treeview_insert(n))
                             
         except Exception as e:
             self.log_message(f"Sonuç parse hatası: {e}", "ERROR")
@@ -708,8 +850,11 @@ class EvilTwinGUI:
             return
             
         self.attack_active = True
-        self.attack_btn.config(state='disabled')
-        self.stop_btn.config(state='normal')
+        try:
+            self.attack_btn.config(state='disabled')
+            self.stop_btn.config(state='normal')
+        except (tk.TclError, RuntimeError):
+            pass
         
         # Saldırıyı thread'de başlat
         attack_thread = threading.Thread(target=self._start_attack)
@@ -755,8 +900,8 @@ class EvilTwinGUI:
             # Çıktıyı oku
             for line in iter(self.attack_process.stdout.readline, ''):
                 if line:
-                    self.root.after(0, lambda l=line: self.attack_status_text.insert(tk.END, l))
-                    self.root.after(0, lambda: self.attack_status_text.see(tk.END))
+                    self._safe_after(0, lambda l=line: self._safe_text_insert(self.attack_status_text, l))
+                    self._safe_after(0, lambda: self._safe_text_see_end(self.attack_status_text))
                     
                 if not self.attack_active:
                     break
@@ -764,7 +909,7 @@ class EvilTwinGUI:
         except Exception as e:
             self.log_message(f"Saldırı hatası: {e}", "ERROR")
         finally:
-            self.root.after(0, self._attack_finished)
+            self._safe_after(0, self._attack_finished)
             
     def stop_attack(self):
         """Saldırıyı durdur"""
@@ -786,9 +931,15 @@ class EvilTwinGUI:
             
     def _attack_finished(self):
         """Saldırı bittiğinde çağrılır"""
-        self.attack_active = False
-        self.attack_btn.config(state='normal')
-        self.stop_btn.config(state='disabled')
+        try:
+            self.attack_active = False
+            if hasattr(self, 'attack_btn') and self.attack_btn and self.attack_btn.winfo_exists():
+                self.attack_btn.config(state='normal')
+            if hasattr(self, 'stop_btn') and self.stop_btn and self.stop_btn.winfo_exists():
+                self.stop_btn.config(state='disabled')
+        except (tk.TclError, RuntimeError):
+            # Widget'lar yok edilmişse sessizce geç
+            self.attack_active = False
         
     def refresh_logs(self):
         """Logları yenile"""
