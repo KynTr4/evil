@@ -452,12 +452,33 @@ class EvilTwinGUI:
             result2 = subprocess.run(['sudo', 'airmon-ng', 'start', interface], 
                                    capture_output=True, text=True)
             
-            # 3. Başarı kontrolü
-            monitor_interface = f"{interface}mon"
-            result3 = subprocess.run(['iwconfig', monitor_interface], 
-                                   capture_output=True, text=True)
+            # 3. Biraz bekle (interface'in hazır olması için)
+            import time
+            time.sleep(2)
             
-            if result3.returncode == 0 and 'Mode:Monitor' in result3.stdout:
+            # 4. Başarı kontrolü - önce mevcut monitor interface'leri kontrol et
+            monitor_interface = f"{interface}mon"
+            
+            # iwconfig ile kontrol et
+            result3 = subprocess.run(['iwconfig'], capture_output=True, text=True)
+            
+            # Monitor interface'i bul
+            monitor_found = False
+            if result3.returncode == 0:
+                for line in result3.stdout.split('\n'):
+                    if monitor_interface in line and 'Mode:Monitor' in line:
+                        monitor_found = True
+                        break
+                    # Bazen farklı isimle oluşabilir (wlan0mon, wlp2s0mon vs)
+                    elif 'Mode:Monitor' in line and interface in line:
+                        # Satırın başındaki interface adını al
+                        parts = line.split()
+                        if len(parts) > 0:
+                            monitor_interface = parts[0]
+                            monitor_found = True
+                            break
+            
+            if monitor_found:
                 self.monitor_active = True
                 self.monitor_status_label.config(text="Durum: Aktif", foreground='green')
                 self.monitor_btn.config(text="📡 Monitor Mode Durdur")
@@ -467,43 +488,28 @@ class EvilTwinGUI:
                 self._safe_messagebox("showinfo", "Başarılı", 
                                     f"Monitor mode aktif: {monitor_interface}")
             else:
-                # Alternatif script yöntemini dene
-                self.log_message("Basit yöntem başarısız, script denenecek...")
-                self._start_monitor_mode_script(interface)
+                self.log_message("Basit yöntem başarısız, manuel kontrol gerekli", "WARNING")
+                self._safe_messagebox("showwarning", "Manuel Kontrol Gerekli", 
+                    "Monitor mode başlatılamadı.\n\nManuel olarak terminal'de deneyin:\n" +
+                    "1. iwconfig\n" +
+                    "2. sudo airmon-ng check kill\n" +
+                    "3. sudo airmon-ng start " + interface + "\n" +
+                    "4. iwconfig")
                 
         except Exception as e:
             self.log_message(f"Monitor mode hatası: {e}", "ERROR")
-            self._safe_messagebox("showerror", "Hata", f"Monitor mode başlatılamadı: {e}")
-    
-    def _start_monitor_mode_script(self, interface):
-        """Script ile monitor mode başlat (yedek yöntem)"""
-        try:
-            # GUI dosyasının bulunduğu klasörün parent dizinini al (evil-twin ana klasörü)
-            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            cmd = ['sudo', './scripts/monitor_mode.sh', interface]
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=script_dir)
-            
-            if result.returncode == 0:
-                self.monitor_active = True
-                self.monitor_status_label.config(text="Durum: Aktif", foreground='green')
-                self.monitor_btn.config(text="📡 Monitor Mode Durdur")
-                
-                # Monitor interface'i bul
-                monitor_interface = f"{interface}mon"
-                self.monitor_interface_var.set(monitor_interface)
-                
-                self.log_message(f"Monitor mode başlatıldı (script): {monitor_interface}")
-            else:
-                self.log_message(f"Script monitor mode hatası: {result.stderr}", "ERROR")
-                
-        except Exception as e:
-            self.log_message(f"Script monitor mode başlatma hatası: {e}", "ERROR")
+            self._safe_messagebox("showerror", "Hata", 
+                f"Monitor mode başlatılamadı: {e}\n\nManuel olarak terminal'de deneyin:\n" +
+                "1. iwconfig\n" +
+                "2. sudo airmon-ng check kill\n" +
+                "3. sudo airmon-ng start " + interface + "\n" +
+                "4. iwconfig")
             
     def stop_monitor_mode(self):
         """Monitor mode'u durdur"""
         try:
             interface = self.interface_var.get()
-            monitor_interface = f"{interface}mon"
+            monitor_interface = self.monitor_interface_var.get() or f"{interface}mon"
             
             self.log_message("Monitor mode durduruluyor...")
             
@@ -511,26 +517,32 @@ class EvilTwinGUI:
             result = subprocess.run(['sudo', 'airmon-ng', 'stop', monitor_interface], 
                                   capture_output=True, text=True)
             
-            # Başarı kontrolü
-            check_result = subprocess.run(['iwconfig', monitor_interface], 
-                                        capture_output=True, text=True)
+            # Biraz bekle
+            import time
+            time.sleep(1)
             
-            if check_result.returncode != 0:  # Interface artık yok
+            # Başarı kontrolü - monitor interface artık olmamalı
+            check_result = subprocess.run(['iwconfig'], capture_output=True, text=True)
+            
+            monitor_still_exists = False
+            if check_result.returncode == 0:
+                for line in check_result.stdout.split('\n'):
+                    if monitor_interface in line and 'Mode:Monitor' in line:
+                        monitor_still_exists = True
+                        break
+            
+            if not monitor_still_exists:
                 self.monitor_active = False
                 self.monitor_status_label.config(text="Durum: Pasif", foreground='red')
                 self.monitor_btn.config(text="📡 Monitor Mode Başlat")
+                self.monitor_interface_var.set("")
                 self.log_message("✅ Monitor mode başarıyla durduruldu")
             else:
-                # Script yöntemini dene
-                self.log_message("Basit yöntem başarısız, script denenecek...")
-                script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                cmd = ['sudo', './scripts/restore_interface.sh', interface]
-                subprocess.run(cmd, capture_output=True, text=True, cwd=script_dir)
-                
-                self.monitor_active = False
-                self.monitor_status_label.config(text="Durum: Pasif", foreground='red')
-                self.monitor_btn.config(text="📡 Monitor Mode Başlat")
-                self.log_message("Monitor mode durduruldu (script)")
+                # Manuel durdurma talimatı
+                self.log_message("Monitor mode otomatik durdurulamadı", "WARNING")
+                self._safe_messagebox("showwarning", "Manuel Durdurma Gerekli",
+                    f"Monitor mode durdurulamadı.\n\nManuel olarak terminal'de deneyin:\n" +
+                    f"sudo airmon-ng stop {monitor_interface}")
             
         except Exception as e:
             self.log_message(f"Monitor mode durdurma hatası: {e}", "ERROR")
@@ -701,21 +713,51 @@ de çalıştırılabilir."""
         scan_thread.start()
         
     def _scan_networks(self):
-        """Ağ tarama işlemi (thread)"""
+        """Ağ tarama işlemi (thread) - Basit airodump-ng kullanımı"""
         try:
-            scan_time = self.scan_time_var.get()
+            scan_time = int(self.scan_time_var.get())
             monitor_interface = self.monitor_interface_var.get()
             
-            # GUI dosyasının bulunduğu klasörün parent dizinini al (evil-twin ana klasörü)
-            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            cmd = ['sudo', './scripts/scan_networks.sh', '-i', monitor_interface, '-t', scan_time, '-s']
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=script_dir)
+            if not monitor_interface:
+                self.log_message("Monitor interface bulunamadı", "ERROR")
+                return
             
-            if result.returncode == 0:
-                self._parse_scan_results()
+            self.log_message(f"Ağ tarama başlatılıyor: {monitor_interface} ({scan_time} saniye)")
+            
+            # Basit airodump-ng komutu
+            # Geçici dosya oluştur
+            import tempfile
+            temp_dir = tempfile.mkdtemp()
+            output_file = os.path.join(temp_dir, "scan")
+            
+            cmd = [
+                'sudo', 'timeout', str(scan_time),
+                'airodump-ng', 
+                '--write', output_file,
+                '--output-format', 'csv',
+                monitor_interface
+            ]
+            
+            self.log_message("Airodump-ng çalıştırılıyor...")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            # CSV dosyasını oku
+            csv_file = f"{output_file}-01.csv"
+            if os.path.exists(csv_file):
+                self._parse_airodump_csv(csv_file)
                 self.log_message("Ağ taraması tamamlandı")
+                
+                # Geçici dosyaları temizle
+                import shutil
+                try:
+                    shutil.rmtree(temp_dir)
+                except:
+                    pass
             else:
-                self.log_message(f"Tarama hatası: {result.stderr}", "ERROR")
+                self.log_message("Tarama sonuçları bulunamadı", "WARNING")
+                self._safe_messagebox("showwarning", "Tarama Uyarısı",
+                    "Ağ bulunamadı.\n\nManuel tarama için terminal'de:\n" +
+                    f"sudo airodump-ng {monitor_interface}")
                 
         except Exception as e:
             self.log_message(f"Tarama işlemi hatası: {e}", "ERROR")
@@ -723,8 +765,76 @@ de çalıştırılabilir."""
             self.scan_active = False
             self._safe_after(0, lambda: self._safe_widget_config(self.scan_btn, text="🔍 Taramayı Başlat", state='normal'))
             
+    def _parse_airodump_csv(self, csv_file):
+        """Airodump CSV dosyasını parse et"""
+        try:
+            with open(csv_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # CSV'yi satırlara ayır
+            lines = content.strip().split('\n')
+            
+            self.networks = []
+            count = 0
+            parsing_stations = False
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                # Station kısmına geldiğinde dur
+                if line.startswith('Station MAC'):
+                    parsing_stations = True
+                    continue
+                    
+                if parsing_stations:
+                    continue
+                    
+                # BSSID satırını atla
+                if line.startswith('BSSID'):
+                    continue
+                    
+                # Ağ verisini parse et
+                parts = [p.strip() for p in line.split(',')]
+                if len(parts) >= 14:
+                    bssid = parts[0]
+                    first_seen = parts[1]
+                    last_seen = parts[2]
+                    channel = parts[3]
+                    speed = parts[4]
+                    privacy = parts[5]
+                    cipher = parts[6]
+                    auth = parts[7]
+                    power = parts[8]
+                    beacons = parts[9]
+                    iv = parts[10]
+                    lan_ip = parts[11]
+                    id_length = parts[12]
+                    essid = parts[13] if len(parts) > 13 else ""
+                    
+                    if bssid and bssid != 'BSSID' and bssid != '':
+                        count += 1
+                        network = {
+                            'no': count,
+                            'ssid': essid if essid else "<Hidden>",
+                            'bssid': bssid,
+                            'channel': channel,
+                            'security': privacy,
+                            'signal': power
+                        }
+                        self.networks.append(network)
+                        
+                        # TreeView'e ekle
+                        self._safe_after(0, lambda n=network: self._safe_treeview_insert(n))
+            
+            self.log_message(f"{len(self.networks)} ağ bulundu")
+                        
+        except Exception as e:
+            self.log_message(f"CSV parse hatası: {e}", "ERROR")
+            
     def _parse_scan_results(self):
-        """Tarama sonuçlarını parse et"""
+        """Eski tarama sonuçlarını parse et (yedek yöntem)"""
         try:
             # CSV dosyasını oku - evil-twin ana klasöründeki logs dizininden
             script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -738,37 +848,7 @@ de çalıştırılabilir."""
                 return
                 
             latest_csv = max(csv_files, key=lambda x: os.path.getctime(os.path.join(logs_dir, x)))
-            
-            with open(os.path.join(logs_dir, latest_csv), 'r') as f:
-                lines = f.readlines()
-                
-            self.networks = []
-            count = 0
-            
-            for line in lines[1:]:  # Başlık satırını atla
-                if line.strip() and not line.startswith('Station MAC'):
-                    parts = line.split(',')
-                    if len(parts) >= 14:
-                        bssid = parts[0].strip()
-                        essid = parts[13].strip() or "<Hidden>"
-                        channel = parts[3].strip()
-                        privacy = parts[5].strip()
-                        power = parts[8].strip()
-                        
-                        if bssid and bssid != 'BSSID':
-                            count += 1
-                            network = {
-                                'no': count,
-                                'ssid': essid,
-                                'bssid': bssid,
-                                'channel': channel,
-                                'security': privacy,
-                                'signal': power
-                            }
-                            self.networks.append(network)
-                            
-                            # TreeView'e ekle
-                            self._safe_after(0, lambda n=network: self._safe_treeview_insert(n))
+            self._parse_airodump_csv(os.path.join(logs_dir, latest_csv))
                             
         except Exception as e:
             self.log_message(f"Sonuç parse hatası: {e}", "ERROR")
